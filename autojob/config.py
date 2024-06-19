@@ -85,6 +85,32 @@ class Config:
         return tab
 
     @cached_property
+    def full_name(self) -> str:
+        if not self.raw:
+            return ""
+        return self.raw.get("name") or ""
+
+    @cached_property
+    def first_name(self) -> str:
+        return self.full_name.rsplit(" ", 1)[0]
+
+    @cached_property
+    def last_name(self) -> str:
+        return self.full_name.rsplit(" ", 1)[-1]
+
+    @cached_property
+    def email(self) -> str:
+        if not self.raw:
+            return ""
+        return self.raw.get("email") or ""
+
+    @cached_property
+    def phone(self) -> str:
+        if not self.raw:
+            return ""
+        return self.raw.get("phone") or ""
+
+    @cached_property
     def zip_prefix(self) -> str:
         prefix = ""
         if self.raw and (name := self.raw.get("name")):

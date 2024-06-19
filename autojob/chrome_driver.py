@@ -4,14 +4,18 @@ import base64
 import os
 import re
 import time
-from contextlib import contextmanager
-from dataclasses import dataclass
+from contextlib import contextmanager, suppress
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import ClassVar, Iterator
+from typing import ClassVar, Iterator, Sequence
 
+import selenium.webdriver.support.expected_conditions as ec
 from colorama import Fore, Style  # type: ignore
 from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.remote.webdriver import By
+from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.support.wait import WebDriverWait
 
 from .config import config
 from .utils import prompt_press_enter
@@ -20,10 +24,14 @@ from .utils import prompt_press_enter
 @dataclass
 class Webdriver:
     driver: webdriver.Chrome
+    wait: WebDriverWait = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.wait = WebDriverWait(self.driver, 5)
 
     def navigate(self, url: str) -> WebdriverPage:
         self.driver.switch_to.window(self.driver.current_window_handle)
-        self.driver.implicitly_wait(5)
+        self.driver.implicitly_wait(1)
         self.driver.get(url)
         time.sleep(0.25)
         page = self.page(url)
@@ -32,6 +40,15 @@ class Webdriver:
 
     def page(self, url: str) -> WebdriverPage:
         return WebdriverPage.from_url(self, url)
+
+    def el(self, xpath: str) -> WebElement:
+        return self.driver.find_element(By.XPATH, xpath)
+
+    def el_all(self, xpath: str) -> Sequence[WebElement]:
+        return self.driver.find_elements(By.XPATH, xpath)
+
+    def scroll(self, element: WebElement) -> None:
+        self.driver.execute_script("arguments[0].scrollIntoView();", element)
 
     def save_pdf(self, dest: Path) -> None:
         pdf = self.driver.execute_cdp_cmd(
@@ -100,13 +117,16 @@ class WebdriverPage:
     url: str
     page_type: ClassVar[str] = ""
     subclasses: ClassVar[list[type[WebdriverPage]]] = []
-    pattern: ClassVar[str] = ""
+    patterns: ClassVar[Sequence[str]] = []
 
     def __init_subclass__(cls) -> None:
         cls.subclasses.append(cls)
 
     def process_page(self) -> None:
         pass
+
+    def prepare_application_form(self) -> bool:
+        return False
 
     def page_file_name(self, count: int = 0) -> str:
         fn_count = f"-{count}" if count > 1 else ""
@@ -116,8 +136,11 @@ class WebdriverPage:
     def from_url(cls, webdriver: Webdriver, url: str) -> WebdriverPage:
         def _class_for_url(url: str) -> type[WebdriverPage]:
             for subclass in cls.subclasses:
-                if subclass.pattern and re.search(subclass.pattern, url):
-                    return subclass
+                if not subclass.patterns:
+                    continue
+                for pattern in subclass.patterns:
+                    if re.search(pattern, url):
+                        return subclass
             return WebdriverPage
 
         return _class_for_url(url)(webdriver, url)
@@ -127,12 +150,95 @@ class WebdriverPosting(WebdriverPage):
     page_type = "posting"
 
 
+class LeverPosting(WebdriverPage):
+    patterns = [r":\/\/jobs\.lever\.co\/"]
+
+    def prepare_application_form(self) -> bool:
+        self.webdriver.navigate(self.url.removesuffix("/") + "/apply")
+        return False
+
+
 class LinkedInPosting(WebdriverPosting):
     page_type = "posting-linkedin"
-    pattern = r":\/\/(www\.)?linkedin\.com\/"
+    patterns = [r":\/\/(www\.)?linkedin\.com\/"]
 
     def process_page(self) -> None:
-        see_more_button = self.webdriver.driver.find_element(
-            By.XPATH, "//button [contains(., 'See more')]"
+        self.webdriver.wait.until(
+            ec.element_to_be_clickable(
+                (By.XPATH, "//button [contains(., 'See more')]")
+            )
+        ).click()
+
+
+class GreenhousePosting(WebdriverPage):
+    patterns = [
+        r":\/\/boards\.greenhouse\.io\/",
+        r"\?gh_jid=[0-9]+$",
+    ]
+
+    def _prefill_fields(self) -> None:
+        for el_name, value in [
+            ("first_name", config.first_name),
+            ("last_name", config.last_name),
+            ("email", config.email),
+            ("phone", config.phone),
+        ]:
+            if not value:
+                continue
+            with suppress(NoSuchElementException):
+                el = self.webdriver.el(
+                    "//input[@type='text']"
+                    f"[@name='job_application[{el_name}]']"
+                )
+                if el.get_attribute("aria-required") == "true":
+                    el.send_keys(value)
+
+    def prepare_application_form(self) -> bool:
+        form = self.webdriver.el(
+            "//form[@id='application_form']"
+            "[contains(@action, '://boards.greenhouse.io')]"
         )
-        see_more_button.click()
+        self._prefill_fields()
+        self.webdriver.scroll(form)
+        form.click()
+        return False
+
+
+class ShopifyPosting(WebdriverPosting):
+    patterns = [r":\/\/(www\.)?shopify\.com\/careers\/"]
+
+    def prepare_application_form(self) -> bool:
+        application_h2 = self.webdriver.el("//h2[text()='Application']")
+        if not application_h2.is_displayed():
+            self._prepare_screening_questions()
+            return True
+        button = self.webdriver.el("//section/button[contains(., 'Submit')]")
+        button.click()
+        self._prefill_fields()
+        self.webdriver.scroll(application_h2)
+        return False
+
+    def _prepare_screening_questions(self) -> None:
+        button = self.webdriver.el("//button [contains(., 'Apply Now')]")
+        button.click()
+        for checkbox in self.webdriver.el_all(
+            "//input[@type='checkbox'][contains(@name, 'screening')]",
+        ):
+            checkbox.click()
+            time.sleep(0.1)
+
+    def _prefill_fields(self) -> None:
+        for text in [
+            "Do you have the right to work in your listed location?",
+            "Please confirm you've read and agree with our candidate NDA",
+            "Please confirm you've read our applicant privacy notice",
+        ]:
+            try:
+                el = self.webdriver.el(
+                    f'//div[contains(text(), "{text}")]'
+                    "/preceding-sibling::input[@type='checkbox']"
+                )
+                el.click()
+                time.sleep(0.1)
+            except NoSuchElementException:
+                pass

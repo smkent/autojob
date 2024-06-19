@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import sys
+import time
 from collections import defaultdict
 from dataclasses import dataclass, field, fields
 from datetime import datetime
@@ -106,18 +107,23 @@ class Role:
     def apply(self) -> None:
         self.apply_prep()
         while action := self.prompt_apply_action():
-            if action == ApplyAction.APPLICATION_PAGE:
-                with chrome_driver() as webdriver:
-                    webdriver.save_pdf(self.new_saved_file("application"))
-            elif action == ApplyAction.APPLICATION_SUBMITTED:
-                with chrome_driver() as webdriver:
-                    webdriver.save_pdf(
-                        self.new_saved_file("application-submitted")
-                    )
-            elif action == ApplyAction.FINISH_ROLE:
+            if not self.perform_apply_action(action):
                 break
-            elif action == ApplyAction.QUIT:
-                sys.exit(0)
+
+    def perform_apply_action(self, action: ApplyAction) -> bool:
+        if action == ApplyAction.APPLICATION_PAGE:
+            with chrome_driver() as webdriver:
+                webdriver.save_pdf(self.new_saved_file("application"))
+        elif action == ApplyAction.APPLICATION_SUBMITTED:
+            with chrome_driver() as webdriver:
+                webdriver.save_pdf(
+                    self.new_saved_file("application-submitted")
+                )
+        elif action == ApplyAction.FINISH_ROLE:
+            return False
+        elif action == ApplyAction.QUIT:
+            sys.exit(0)
+        return True
 
     def prompt_apply_action(self) -> ApplyAction:
         while True:
@@ -154,15 +160,17 @@ class Role:
         role_resume_path = self.role_path / self.resume.name
         if not role_resume_path.exists():
             shutil.copy(self.resume, role_resume_path)
-        if not self.save_posting:
-            return
-        if self.role_job_board_urls:
+        if self.save_posting and self.role_job_board_urls:
             self.save_job_board_postings()
-        if not self.posting_pdf_path.exists():
-            with chrome_driver() as webdriver:
-                webdriver.navigate(self.role_url)
+        with chrome_driver() as webdriver:
+            page = webdriver.navigate(self.role_url)
+            if self.save_posting and not self.posting_pdf_path.exists():
+                time.sleep(0.5)
                 webdriver.save_pdf(self.posting_pdf_path)
-        self.check_posting_pdf()
+            self.check_posting_pdf()
+            while page.prepare_application_form():
+                time.sleep(0.1)
+                self.perform_apply_action(ApplyAction.APPLICATION_PAGE)
 
     def new_saved_file(self, page_type: str, extension: str = "pdf") -> Path:
         self.saved_file_counts[page_type] += 1
