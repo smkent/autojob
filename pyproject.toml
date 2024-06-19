@@ -18,7 +18,7 @@ classifiers = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.11"
 python-slugify = "^8.0.4"
 pypdf = "^4.1.0"
 colorama = "^0.4.6"
