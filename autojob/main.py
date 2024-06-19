@@ -12,14 +12,15 @@ from zipfile import ZipFile
 from colorama import Fore, Style  # type: ignore
 from dateutil.parser import parse as parse_date
 
-from .config import config
+from .config import ConfigSetup, config
 from .roles import Roles
 from .utils import prompt_press_enter
 
 
 class AutoJobApp:
-    def __init__(self) -> None:
-        self.roles = Roles(
+    @cached_property
+    def roles(self) -> Roles:
+        return Roles(
             self.args.resume or config.resume,
             set(self.args.select_companies or {}),
             set(self.args.skip_companies or {}),
@@ -51,7 +52,7 @@ class AutoJobApp:
         ap = ArgumentParser(description="Job application tools")
         ap.add_argument(
             "action",
-            choices=["apply", "check", "zip", "unzip"],
+            choices=["apply", "check", "zip", "unzip", "config"],
             help="Action to perform",
         )
         ap.add_argument(
@@ -122,6 +123,9 @@ class AutoJobApp:
         return self.args_tuple[1]
 
     def __call__(self) -> None:
+        if self.args.action == "config":
+            ConfigSetup()()
+            return
         self.print_config()
         if self.args.action == "apply":
             self.roles.apply()

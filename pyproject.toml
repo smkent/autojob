@@ -55,8 +55,7 @@ pytest-sugar = "*"
 
 [tool.poetry.scripts]
 autojob = "autojob.main:AutoJobApp()"
-scrape = "autojob.scrape:Scrape()"
-config = "autojob.config:ConfigSetup()"
+scrapejob = "autojob.scrape:Scrape()"
 
 [tool.poetry-dynamic-versioning]
 enable = true
