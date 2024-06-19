@@ -12,7 +12,7 @@ from typing import ClassVar, Iterator, Sequence
 import selenium.webdriver.support.expected_conditions as ec
 from colorama import Fore, Style  # type: ignore
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.remote.webdriver import By
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.wait import WebDriverWait
@@ -51,11 +51,11 @@ class Webdriver:
 
     @property
     def wait(self) -> WebDriverWait:
-        return WebDriverWait(self.driver, 5)
+        return WebDriverWait(self.driver, 3)
 
     def navigate(self, url: str) -> WebdriverPage:
         self.driver.switch_to.window(self.driver.current_window_handle)
-        self.driver.implicitly_wait(1)
+        self.driver.implicitly_wait(3)
         self.driver.get(url)
         time.sleep(0.25)
         page = self.page(url)
@@ -212,13 +212,21 @@ class GreenhousePosting(WebdriverPage):
                     el.send_keys(value)
 
     def prepare_application_form(self) -> bool:
-        form = self.webdriver.el(
-            "//form[@id='application_form']"
-            "[contains(@action, '://boards.greenhouse.io')]"
-        )
-        self._prefill_fields()
-        self.webdriver.scroll(form)
-        form.click()
+        with suppress(TimeoutException):
+            form = self.webdriver.wait.until(
+                ec.presence_of_element_located(
+                    (
+                        By.XPATH,
+                        (
+                            "//form[@id='application_form']"
+                            "[contains(@action, '://boards.greenhouse.io')]"
+                        ),
+                    ),
+                )
+            )
+            self._prefill_fields()
+            self.webdriver.scroll(form)
+            form.click()
         return False
 
 
