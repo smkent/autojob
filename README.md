@@ -6,6 +6,11 @@
 
 **Warning:** This is experimental, use at your own risk
 
+## Installation notes
+
+On Windows, ensure
+[Windows Long Path support is enabled][windows-long-path-support].
+
 ## Development
 
 ### [Poetry][poetry] installation
@@ -44,3 +49,4 @@ Created from [smkent/cookie-python][cookie-python] using
 [pipx]: https://pypa.github.io/pipx/
 [poetry]: https://python-poetry.org/docs/#installation
 [repo]: https://github.com/smkent/autojob
+[windows-long-path-support]: https://pip.pypa.io/warnings/enable-long-paths
