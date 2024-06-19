@@ -1,9 +1,12 @@
 import os
+import sys
 from functools import cached_property
 from pathlib import Path
+from textwrap import indent
 from typing import Any, Sequence
 
 import yaml
+from colorama import Style  # type: ignore
 from slugify import slugify
 
 HOME = Path.home()
@@ -22,23 +25,20 @@ class ConfigValueFileMissing(ValueError):
 class Config:
     @cached_property
     def conf_file(self) -> Path:
-        if ecfn := os.environ.get("CONF"):
-            ecf = Path(ecfn)
-            if not ecf.is_file():
-                raise Exception(f"Configuration file {ecfn} not found")
-            return ecf
+        if fn := os.environ.get("CONF"):
+            return Path(fn)
         return CONF_FILE
 
     @cached_property
-    def raw(self) -> dict[str, Any] | None:
+    def raw(self) -> dict[str, Any]:
         if not self.conf_file.is_file():
-            return None
+            return {}
         with open(self.conf_file) as f:
             data = yaml.safe_load(f)
         if data:
             assert isinstance(data, dict)
             return data
-        return None
+        return {}
 
     def value_to_path(
         self, key: str, default: Path | str | None = None
@@ -99,3 +99,50 @@ class Config:
 
 
 config = Config()
+
+
+class ConfigSetup:
+    config_keys = [
+        "name",
+        "email",
+        "phone",
+        "dir",
+        "resume",
+        "spreadsheet",
+        "spreadsheet_tab",
+    ]
+
+    def __call__(self) -> None:
+        new_conf: dict[str, str] = {}
+        for key in self.config_keys:
+            existing_value = config.raw.get(key) or ""
+            # One-off preprocessing
+            if key == "spreadsheet_tab" and not existing_value:
+                existing_value = (
+                    config.raw.get("name") or new_conf.get("name") or ""
+                ).rsplit(" ", -1)[0]
+            existing_str = (
+                (" [" + Style.BRIGHT + existing_value + Style.RESET_ALL + "]")
+                if existing_value
+                else ""
+            )
+            sys.stdout.write(Style.RESET_ALL)
+            new_value = (
+                input(f"{key}{existing_str}: " + Style.BRIGHT)
+                or existing_value
+            )
+
+            new_conf[key] = new_value
+        new_yaml = yaml.dump(new_conf)
+        with open(config.conf_file, "w") as f:
+            f.write(new_yaml)
+        print("")
+        print(
+            "Wrote config file "
+            + Style.BRIGHT
+            + str(config.conf_file)
+            + Style.RESET_ALL
+            + ":"
+        )
+        print("")
+        print(indent(new_yaml, prefix="    "))
