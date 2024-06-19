@@ -56,11 +56,11 @@ class AutoJobApp:
             help="Action to perform",
         )
         ap.add_argument(
-            "-2",
-            "--check-duplicate-urls",
+            "-1",
+            "--no-check-duplicate-urls",
             dest="check_duplicate_urls",
-            action="store_true",
-            help="Check for duplicate role URLs in spreadsheet tab",
+            action="store_false",
+            help="Don't check for duplicate role URLs in spreadsheet tab",
         )
         ap.add_argument(
             "-n",
