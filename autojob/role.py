@@ -16,10 +16,10 @@ from pandas import Series  # type: ignore
 from pypdf import PdfReader
 from slugify import slugify
 
-from .chrome_driver import ChromeDriverManager
+from .chrome_driver import Webdriver, WebdriverPage
 from .config import config
 
-chrome_driver = ChromeDriverManager()
+chrome_driver = Webdriver()
 
 
 class ApplyAction(StrEnum):
@@ -105,20 +105,24 @@ class Role:
         )
 
     def apply(self) -> None:
-        self.apply_prep()
-        while action := self.prompt_apply_action():
-            if not self.perform_apply_action(action):
-                break
-
-    def perform_apply_action(self, action: ApplyAction) -> bool:
-        if action == ApplyAction.APPLICATION_PAGE:
-            with chrome_driver() as webdriver:
-                webdriver.save_pdf(self.new_saved_file("application"))
-        elif action == ApplyAction.APPLICATION_SUBMITTED:
-            with chrome_driver() as webdriver:
-                webdriver.save_pdf(
-                    self.new_saved_file("application-submitted")
+        page = self.apply_prep()
+        with chrome_driver(incognito=False) as webdriver:
+            while page.prepare_application_form():
+                time.sleep(0.1)
+                self.perform_apply_action(
+                    webdriver, ApplyAction.APPLICATION_PAGE
                 )
+            while action := self.prompt_apply_action():
+                if not self.perform_apply_action(webdriver, action):
+                    break
+
+    def perform_apply_action(
+        self, webdriver: Webdriver, action: ApplyAction
+    ) -> bool:
+        if action == ApplyAction.APPLICATION_PAGE:
+            webdriver.save_pdf(self.new_saved_file("application"))
+        elif action == ApplyAction.APPLICATION_SUBMITTED:
+            webdriver.save_pdf(self.new_saved_file("application-submitted"))
         elif action == ApplyAction.FINISH_ROLE:
             return False
         elif action == ApplyAction.QUIT:
@@ -155,7 +159,7 @@ class Role:
             except ValueError:
                 continue
 
-    def apply_prep(self) -> None:
+    def apply_prep(self) -> WebdriverPage:
         self.role_path.mkdir(parents=True, exist_ok=True)
         role_resume_path = self.role_path / self.resume.name
         if not role_resume_path.exists():
@@ -168,9 +172,7 @@ class Role:
                 time.sleep(0.5)
                 webdriver.save_pdf(self.posting_pdf_path)
             self.check_posting_pdf()
-            while page.prepare_application_form():
-                time.sleep(0.1)
-                self.perform_apply_action(ApplyAction.APPLICATION_PAGE)
+            return page
 
     def new_saved_file(self, page_type: str, extension: str = "pdf") -> Path:
         self.saved_file_counts[page_type] += 1

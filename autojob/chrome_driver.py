@@ -23,11 +23,35 @@ from .utils import prompt_press_enter
 
 @dataclass
 class Webdriver:
-    driver: webdriver.Chrome
-    wait: WebDriverWait = field(init=False)
+    drivers: list[webdriver.Chrome] = field(default_factory=list)
+    existing_chrome_first_run: bool = field(init=False, default=True)
 
-    def __post_init__(self) -> None:
-        self.wait = WebDriverWait(self.driver, 5)
+    @contextmanager
+    def __call__(self, incognito: bool = False) -> Iterator[Webdriver]:
+        method = (
+            self._chrome_driver_incognito
+            if incognito
+            else self._chrome_driver_existing_session
+        )
+        url = None
+        if self.drivers:
+            url = self.driver.current_url
+        with method() as driver:
+            self.drivers.insert(0, driver)
+            if url:
+                self.navigate(url)
+            yield self
+            self.drivers.pop(0)
+
+    @property
+    def driver(self) -> webdriver.Chrome:
+        if not self.drivers:
+            raise Exception("No drivers active")
+        return self.drivers[0]
+
+    @property
+    def wait(self) -> WebDriverWait:
+        return WebDriverWait(self.driver, 5)
 
     def navigate(self, url: str) -> WebdriverPage:
         self.driver.switch_to.window(self.driver.current_window_handle)
@@ -69,46 +93,40 @@ class Webdriver:
         )
         print("")
 
-
-@dataclass
-class ChromeDriverManager:
-    first_run: bool = True
+    @contextmanager
+    def _chrome_driver_incognito(self) -> Iterator[webdriver.Chrome]:
+        options = webdriver.ChromeOptions()
+        driver = webdriver.Chrome(options=options)
+        yield driver
+        driver.quit()
 
     @contextmanager
-    def __call__(self) -> Iterator[Webdriver]:
-        with self.chrome_driver_existing_session() as driver:
-            yield Webdriver(driver)
-
-    @contextmanager
-    def chrome_driver_existing_session(self) -> Iterator[webdriver.Chrome]:
-        if self.first_run:
-            self._startup_prompt()
-            self.first_run = False
+    def _chrome_driver_existing_session(self) -> Iterator[webdriver.Chrome]:
+        if self.existing_chrome_first_run:
+            print("")
+            print(
+                Fore.CYAN
+                + Style.BRIGHT
+                + "Action required: "
+                + Style.RESET_ALL
+                + "Ensure Chrome is running with the following options:"
+                + os.linesep * 2
+                + Style.BRIGHT
+                + (
+                    "google-chrome"
+                    " -remote-debugging-port=9014"
+                    " --profile-directory=Default"
+                )
+                + Style.RESET_ALL
+            )
+            print("")
+            prompt_press_enter()
+            self.existing_chrome_first_run = False
         options = webdriver.ChromeOptions()
         options.add_experimental_option("debuggerAddress", "localhost:9014")
         driver = webdriver.Chrome(options=options)
         yield driver
         driver.quit()
-
-    def _startup_prompt(self) -> None:
-        print("")
-        print(
-            Fore.CYAN
-            + Style.BRIGHT
-            + "Action required: "
-            + Style.RESET_ALL
-            + "Ensure Chrome is running with the following options:"
-            + os.linesep * 2
-            + Style.BRIGHT
-            + (
-                "google-chrome"
-                " -remote-debugging-port=9014"
-                " --profile-directory=Default"
-            )
-            + Style.RESET_ALL
-        )
-        print("")
-        prompt_press_enter()
 
 
 @dataclass
