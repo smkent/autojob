@@ -1,0 +1,120 @@
+[build-system]
+requires = ["poetry-core>=1.2.0", "poetry-dynamic-versioning"]
+build-backend = "poetry_dynamic_versioning.backend"
+
+[tool.poetry]
+name = "autojob"
+version = "0.0.0"
+description = "Job application tools"
+license = "GPL-3.0-or-later"
+authors = ["Stephen Kent <smkent@smkent.net>"]
+readme = "README.md"
+repository = "https://github.com/smkent/autojob"
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+python-slugify = "^8.0.4"
+pypdf = "^4.1.0"
+colorama = "^0.4.6"
+python-dateutil = "^2.9.0.post0"
+pandas = {extras = ["excel"], version = "^2.2.1"}
+pyyaml = "^6.0.1"
+types-pyyaml = "^6.0.12.20240311"
+beautifulsoup4 = "^4.12.3"
+types-requests = "^2.32.0.20240602"
+types-beautifulsoup4 = "^4.12.0.20240511"
+lxml = "^5.2.2"
+flatten-json = "^0.1.14"
+selenium = "^4.10"
+webdriver-manager = "^3.8.6"
+setuptools = "^70.0.0"
+
+[tool.poetry.dev-dependencies]
+bandit = {extras = ["toml"], version = "*"}
+black = "*"
+cruft = "*"
+flake8 = "*"
+flake8-bugbear = "*"
+flake8-pyproject = "*"
+flake8-simplify = "*"
+isort = "*"
+mypy = "*"
+pep8-naming = "*"
+poethepoet = "*"
+pre-commit = "*"
+pytest = "*"
+pytest-cov = "*"
+pytest-github-actions-annotate-failures = "*"
+pytest-sugar = "*"
+
+[tool.poetry.scripts]
+autojob = "autojob.main:AutoJobApp()"
+scrape = "autojob.scrape:Scrape()"
+
+[tool.poetry-dynamic-versioning]
+enable = true
+vcs = "git"
+style = "semver"
+
+[tool.poe.tasks.lint]
+cmd = "pre-commit run --all-files --show-diff-on-failure"
+help = "Check all files"
+
+[tool.poe.tasks.pytest]
+cmd = "pytest"
+help = "Run unit tests with pytest"
+
+[tool.poe.tasks.test]
+sequence = ["lint", "pytest"]
+help = "Run all tests"
+
+[tool.bandit]
+skips = ["B101", "B404", "B603"]  # assert_used
+
+[tool.black]
+line-length = 79
+
+[tool.coverage.run]
+source = ["autojob"]
+
+[tool.coverage.report]
+fail_under = 0
+show_missing = true
+
+[tool.cruft]
+skip = [".git"]
+
+[tool.flake8]
+exclude = "./.*"
+
+[tool.isort]
+atomic = true
+profile = "black"
+line_length = 79
+
+[tool.mypy]
+files = [ "tests", "autojob" ]
+mypy_path = "types"
+disallow_untyped_defs = true
+no_implicit_optional = true
+check_untyped_defs = true
+warn_return_any = true
+show_error_codes = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+addopts = """\
+    --cov \
+    --cov-append \
+    --cov-report term \
+    --cov-report xml:.pytest_coverage.xml \
+    --junitxml=.pytest_results.xml \
+"""
+
+# vim: ft=cfg

@@ -1,0 +1,21 @@
+{
+  "template": "https://github.com/smkent/cookie-python",
+  "commit": "9e52fa17e27122446a100e2ad0729c1344133703",
+  "checkout": null,
+  "context": {
+    "cookiecutter": {
+      "project_name": "autojob",
+      "project_slug": "autojob",
+      "project_description": "Job application tools",
+      "project_license": "GPL-3.0-or-later",
+      "enable_coverage": "no",
+      "enable_pypi_publish": "no",
+      "enable_container_publish": "no",
+      "author_name": "Stephen Kent",
+      "author_email": "smkent@smkent.net",
+      "github_user": "smkent",
+      "_template": "https://github.com/smkent/cookie-python"
+    }
+  },
+  "directory": null
+}
