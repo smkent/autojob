@@ -19,7 +19,6 @@ from slugify import slugify
 
 from .chrome_driver import Webdriver, WebdriverPage
 from .config import config
-from .utils import prompt_press_enter
 
 chrome_driver = Webdriver()
 
@@ -148,12 +147,22 @@ class Role:
                     webdriver, ApplyAction.APPLICATION_PAGE
                 )
             actions = ApplyAction.all(include_incognito=not incognito)
-            while action := self.prompt_apply_action(actions):
-                if action == ApplyAction.INCOGNITO and not incognito:
-                    self.apply_form(page, incognito=True)
-                    return
-                if not self.perform_apply_action(webdriver, action):
-                    break
+            try:
+                while action := self.prompt_apply_action(actions):
+                    if action == ApplyAction.INCOGNITO and not incognito:
+                        self.apply_form(page, incognito=True)
+                        return
+                    if not self.perform_apply_action(webdriver, action):
+                        break
+            except KeyboardInterrupt:
+                print("")
+                print("")
+                self.apply_quit()
+
+    def apply_quit(self) -> None:
+        self.apply_cancel()
+        print("Exiting")
+        sys.exit(0)
 
     def perform_apply_action(
         self, webdriver: Webdriver, action: ApplyAction
@@ -173,7 +182,7 @@ class Role:
         elif action == ApplyAction.FINISH_ROLE:
             return False
         elif action == ApplyAction.QUIT:
-            sys.exit(0)
+            self.apply_quit()
         return True
 
     def prompt_apply_action(
@@ -229,15 +238,20 @@ class Role:
 
     def apply_cancel(self) -> None:
         if self.role_path.is_dir():
-            print(f"About to delete {self.role_path} and all its contents:")
+            print(f"Delete {self.role_path} and all its contents?")
             print("")
             for fn in self.role_path.rglob("*"):
                 print(
                     "    " + str(fn).removeprefix(str(self.role_path) + os.sep)
                 )
             print("")
-            prompt_press_enter()
+            result = input("[y/N] ").strip().lower()
+            print("")
+            if result != "y":
+                return
             shutil.rmtree(self.role_path)
+            print(f"Deleted {self.role_path}")
+            print("")
 
     def new_saved_file(self, page_type: str, extension: str = "pdf") -> Path:
         self.saved_file_counts[page_type] += 1
