@@ -193,7 +193,8 @@ class Role:
             if self.save_posting and not self.posting_pdf_path.exists():
                 time.sleep(0.5)
                 webdriver.save_pdf(self.posting_pdf_path)
-            self.check_posting_pdf()
+            if self.posting_pdf_path.is_file():
+                self.check_posting_pdf()
             return page
 
     def apply_cancel(self) -> None:
