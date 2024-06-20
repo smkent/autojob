@@ -168,7 +168,7 @@ class WebdriverPosting(WebdriverPage):
 
 
 class LeverPosting(WebdriverPage):
-    patterns = [r":\/\/jobs\.lever\.co\/"]
+    patterns = [r":\/\/jobs\.(eu\.)?lever\.co\/"]
 
     def prepare_application_form(self) -> bool:
         self.webdriver.navigate(self.url.removesuffix("/") + "/apply")
@@ -198,7 +198,7 @@ class LinkedInPosting(WebdriverPosting):
 
 class GreenhousePosting(WebdriverPage):
     patterns = [
-        r":\/\/boards\.greenhouse\.io\/",
+        r":\/\/boards\.(eu\.)?greenhouse\.io\/",
         r"\?gh_jid=[0-9]+$",
     ]
 
