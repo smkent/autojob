@@ -18,6 +18,7 @@ from slugify import slugify
 
 from .chrome_driver import Webdriver, WebdriverPage
 from .config import config
+from .utils import prompt_press_enter
 
 chrome_driver = Webdriver()
 
@@ -42,6 +43,10 @@ class ApplyAction(StrEnum):
     )
     POSTING = "p", "Re-save posting PDF from current page"
     FINISH_ROLE = "n", "Next role"
+    CANCEL_ROLE = (
+        "cancel",
+        "Cancel/skip this role and remove its files (e.g. role is closed)",
+    )
     QUIT = "q", "Quit"
 
 
@@ -134,10 +139,13 @@ class Role:
         elif action == ApplyAction.APPLICATION_SUBMITTED:
             webdriver.save_pdf(self.new_saved_file("application-submitted"))
             return False
-        elif action == ApplyAction.FINISH_ROLE:
-            return False
         elif action == ApplyAction.POSTING:
             webdriver.save_pdf(self.posting_pdf_path)
+        elif action == ApplyAction.CANCEL_ROLE:
+            self.apply_cancel()
+            return False
+        elif action == ApplyAction.FINISH_ROLE:
+            return False
         elif action == ApplyAction.QUIT:
             sys.exit(0)
         return True
@@ -186,6 +194,18 @@ class Role:
                 webdriver.save_pdf(self.posting_pdf_path)
             self.check_posting_pdf()
             return page
+
+    def apply_cancel(self) -> None:
+        if self.role_path.is_dir():
+            print(f"About to delete {self.role_path} and all its contents:")
+            print("")
+            for fn in self.role_path.rglob("*"):
+                print(
+                    "    " + str(fn).removeprefix(str(self.role_path) + os.sep)
+                )
+            print("")
+            prompt_press_enter()
+            shutil.rmtree(self.role_path)
 
     def new_saved_file(self, page_type: str, extension: str = "pdf") -> Path:
         self.saved_file_counts[page_type] += 1
