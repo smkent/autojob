@@ -49,9 +49,8 @@ class Webdriver:
             raise Exception("No drivers active")
         return self.drivers[0]
 
-    @property
-    def wait(self) -> WebDriverWait:
-        return WebDriverWait(self.driver, 3)
+    def wait(self, timeout: float = 3) -> WebDriverWait:
+        return WebDriverWait(self.driver, timeout)
 
     def navigate(self, url: str) -> WebdriverPage:
         self.driver.switch_to.window(self.driver.current_window_handle)
@@ -181,11 +180,20 @@ class LinkedInPosting(WebdriverPosting):
     patterns = [r":\/\/(www\.)?linkedin\.com\/"]
 
     def process_page(self) -> None:
-        self.webdriver.wait.until(
+        self.webdriver.wait().until(
             ec.element_to_be_clickable(
                 (By.XPATH, "//button [contains(., 'See more')]")
             )
         ).click()
+
+    def prepare_application_form(self) -> bool:
+        with suppress(TimeoutException):
+            self.webdriver.wait(timeout=1).until(
+                ec.element_to_be_clickable(
+                    (By.XPATH, "//main//button[contains(., 'Easy Apply')]")
+                )
+            ).click()
+        return False
 
 
 class GreenhousePosting(WebdriverPage):
@@ -213,7 +221,7 @@ class GreenhousePosting(WebdriverPage):
 
     def prepare_application_form(self) -> bool:
         with suppress(TimeoutException):
-            form = self.webdriver.wait.until(
+            form = self.webdriver.wait().until(
                 ec.presence_of_element_located(
                     (
                         By.XPATH,

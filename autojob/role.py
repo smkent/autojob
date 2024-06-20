@@ -32,7 +32,14 @@ class ApplyAction(StrEnum):
         return member
 
     APPLICATION_PAGE = "a", "Save application PDF"
-    APPLICATION_SUBMITTED = "s", "Save application submitted PDF"
+    APPLICATION_SUBMITTED_ONLY = (
+        "as",
+        "Save application submitted PDF",
+    )
+    APPLICATION_SUBMITTED = (
+        "s",
+        "Save application submitted PDF and continue to next role",
+    )
     FINISH_ROLE = "n", "Next role"
     QUIT = "q", "Quit"
 
@@ -121,8 +128,11 @@ class Role:
     ) -> bool:
         if action == ApplyAction.APPLICATION_PAGE:
             webdriver.save_pdf(self.new_saved_file("application"))
+        elif action == ApplyAction.APPLICATION_SUBMITTED_ONLY:
+            webdriver.save_pdf(self.new_saved_file("application-submitted"))
         elif action == ApplyAction.APPLICATION_SUBMITTED:
             webdriver.save_pdf(self.new_saved_file("application-submitted"))
+            return False
         elif action == ApplyAction.FINISH_ROLE:
             return False
         elif action == ApplyAction.QUIT:
