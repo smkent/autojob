@@ -141,7 +141,6 @@ class Role:
 
     def prompt_apply_action(self) -> ApplyAction:
         while True:
-            print("")
             print(
                 Fore.CYAN
                 + Style.BRIGHT
@@ -164,6 +163,7 @@ class Role:
                 + "Enter an action to continue [n]: "
                 + Style.RESET_ALL
             )
+            print("")
             try:
                 return ApplyAction((result.strip() or "n").lower())
             except ValueError:
