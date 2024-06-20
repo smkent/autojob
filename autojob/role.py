@@ -10,6 +10,7 @@ from datetime import datetime
 from enum import StrEnum
 from functools import cached_property
 from pathlib import Path
+from typing import Sequence
 
 from colorama import Fore, Style  # type: ignore
 from pandas import Series  # type: ignore
@@ -32,6 +33,18 @@ class ApplyAction(StrEnum):
         member.desc = desc
         return member
 
+    @staticmethod
+    def all() -> Sequence[ApplyAction]:
+        return [
+            ApplyAction.APPLICATION_PAGE,
+            ApplyAction.APPLICATION_SUBMITTED_ONLY,
+            ApplyAction.APPLICATION_SUBMITTED,
+            ApplyAction.POSTING,
+            ApplyAction.FINISH_ROLE,
+            ApplyAction.CANCEL_ROLE,
+            ApplyAction.QUIT,
+        ]
+
     APPLICATION_PAGE = "a", "Save application PDF"
     APPLICATION_SUBMITTED_ONLY = (
         "as",
@@ -41,6 +54,7 @@ class ApplyAction(StrEnum):
         "s",
         "Save application submitted PDF and continue to next role",
     )
+    INCOGNITO = "i", "Re-open posting in incognito mode"
     POSTING = "p", "Re-save posting PDF from current page"
     FINISH_ROLE = "n", "Next role"
     CANCEL_ROLE = (
@@ -151,6 +165,7 @@ class Role:
         return True
 
     def prompt_apply_action(self) -> ApplyAction:
+        actions = ApplyAction.all()
         while True:
             print(
                 Fore.CYAN
@@ -159,8 +174,8 @@ class Role:
                 + Style.RESET_ALL
             )
             print("")
-            indent = max(4, max(len(a.value) for a in ApplyAction))
-            for aa in ApplyAction:
+            indent = max(4, max(len(a.value) for a in actions))
+            for aa in actions:
                 print(
                     "    "
                     + Style.BRIGHT
@@ -176,7 +191,9 @@ class Role:
             )
             print("")
             try:
-                return ApplyAction((result.strip() or "n").lower())
+                action = ApplyAction((result.strip() or "n").lower())
+                if action in actions:
+                    return action
             except ValueError:
                 continue
 
