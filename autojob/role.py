@@ -240,7 +240,7 @@ class Role:
         if self.role_path.is_dir():
             print(f"Delete {self.role_path} and all its contents?")
             print("")
-            for fn in self.role_path.rglob("*"):
+            for fn in sorted(self.role_path.rglob("*")):
                 print(
                     "    " + str(fn).removeprefix(str(self.role_path) + os.sep)
                 )
