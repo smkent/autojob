@@ -71,7 +71,7 @@ class RoleChecks:
 
 @dataclass
 class Role:
-    resume: Path
+    resume: Path | None
     company: str
     role_title: str
     role_url: str
@@ -87,8 +87,8 @@ class Role:
 
     @staticmethod
     def from_spreadsheet_row(
-        resume: Path,
         row: Series,
+        resume: Path | None = None,
         role_num: int = 0,
         save_posting: bool = False,
     ) -> Role:
@@ -182,9 +182,10 @@ class Role:
 
     def apply_prep(self) -> WebdriverPage:
         self.role_path.mkdir(parents=True, exist_ok=True)
-        role_resume_path = self.role_path / self.resume.name
-        if not role_resume_path.exists():
-            shutil.copy(self.resume, role_resume_path)
+        if self.resume:
+            role_resume_path = self.role_path / self.resume.name
+            if not role_resume_path.exists():
+                shutil.copy(self.resume, role_resume_path)
         if self.save_posting and self.role_job_board_urls:
             self.save_job_board_postings()
         with chrome_driver() as webdriver:
@@ -236,7 +237,7 @@ class Role:
             return []
         files = []
         for fp in self.role_path.iterdir():
-            if fp.name == self.resume.name:
+            if self.resume and fp.name == self.resume.name:
                 continue
             if fp == self.posting_pdf_path:
                 continue

@@ -31,7 +31,7 @@ class RoleCounter:
 
 @dataclass
 class Roles:
-    resume: Path
+    resume: Path | None = None
     select_companies: set[str] = field(default_factory=set)
     skip_companies: set[str] = field(default_factory=set)
     check_duplicate_urls: bool = False
@@ -145,8 +145,8 @@ class Roles:
             ):
                 continue
             role = Role.from_spreadsheet_row(
-                self.resume,
                 row,
+                self.resume,
                 role_num=role_counts.next(
                     row["Company"],
                     (

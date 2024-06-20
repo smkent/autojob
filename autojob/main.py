@@ -152,7 +152,9 @@ class AutoJobApp:
         )
         print("")
         print("   ", f"{'PDFs dir:': >{align}}", _br(config.dir))
-        print("   ", f"{'Resume:': >{align}}", _br(self.roles.resume))
+        print(
+            "   ", f"{'Resume:': >{align}}", _br(self.roles.resume or "(none)")
+        )
         print("   ", f"{'Spreadsheet:': >{align}}", _br(config.spreadsheet))
         print(
             "   ",

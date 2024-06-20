@@ -1,5 +1,6 @@
 import os
 import sys
+from contextlib import suppress
 from functools import cached_property
 from pathlib import Path
 from textwrap import indent
@@ -68,8 +69,10 @@ class Config:
         return self.value_to_path("dir", HOME / "autojob").absolute()
 
     @cached_property
-    def resume(self) -> Path:
-        return self.value_to_file_path("resume")
+    def resume(self) -> Path | None:
+        with suppress(ConfigValueMissing):
+            return self.value_to_file_path("resume")
+        return None
 
     @cached_property
     def spreadsheet(self) -> Path:
