@@ -40,6 +40,7 @@ class ApplyAction(StrEnum):
         "s",
         "Save application submitted PDF and continue to next role",
     )
+    POSTING = "p", "Re-save posting PDF from current page"
     FINISH_ROLE = "n", "Next role"
     QUIT = "q", "Quit"
 
@@ -135,6 +136,8 @@ class Role:
             return False
         elif action == ApplyAction.FINISH_ROLE:
             return False
+        elif action == ApplyAction.POSTING:
+            webdriver.save_pdf(self.posting_pdf_path)
         elif action == ApplyAction.QUIT:
             sys.exit(0)
         return True
