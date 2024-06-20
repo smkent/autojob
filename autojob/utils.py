@@ -1,3 +1,5 @@
+import sys
+
 import requests
 from bs4 import BeautifulSoup
 from colorama import Style  # type: ignore
@@ -10,5 +12,13 @@ def url_to_soup(url: str) -> BeautifulSoup:
 
 
 def prompt_press_enter(prefix: str = "") -> None:
-    input(Style.DIM + prefix + "Press [Enter] to continue " + Style.RESET_ALL)
+    try:
+        input(
+            Style.DIM + prefix + "Press [Enter] to continue " + Style.RESET_ALL
+        )
+    except KeyboardInterrupt:
+        print("")
+        print("")
+        print("Exiting")
+        sys.exit(0)
     print("")
