@@ -34,16 +34,21 @@ class ApplyAction(StrEnum):
         return member
 
     @staticmethod
-    def all() -> Sequence[ApplyAction]:
-        return [
+    def all(include_incognito: bool = False) -> Sequence[ApplyAction]:
+        actions = [
             ApplyAction.APPLICATION_PAGE,
             ApplyAction.APPLICATION_SUBMITTED_ONLY,
             ApplyAction.APPLICATION_SUBMITTED,
             ApplyAction.POSTING,
+        ]
+        if include_incognito:
+            actions.append(ApplyAction.INCOGNITO)
+        actions += [
             ApplyAction.FINISH_ROLE,
             ApplyAction.CANCEL_ROLE,
             ApplyAction.QUIT,
         ]
+        return actions
 
     APPLICATION_PAGE = "a", "Save application PDF"
     APPLICATION_SUBMITTED_ONLY = (
@@ -133,13 +138,20 @@ class Role:
 
     def apply(self) -> None:
         page = self.apply_prep()
-        with chrome_driver(incognito=False) as webdriver:
+        self.apply_form(page)
+
+    def apply_form(self, page: WebdriverPage, incognito: bool = False) -> None:
+        with chrome_driver(incognito=incognito) as webdriver:
             while page.prepare_application_form():
                 time.sleep(0.1)
                 self.perform_apply_action(
                     webdriver, ApplyAction.APPLICATION_PAGE
                 )
-            while action := self.prompt_apply_action():
+            actions = ApplyAction.all(include_incognito=not incognito)
+            while action := self.prompt_apply_action(actions):
+                if action == ApplyAction.INCOGNITO and not incognito:
+                    self.apply_form(page, incognito=True)
+                    return
                 if not self.perform_apply_action(webdriver, action):
                     break
 
@@ -164,8 +176,9 @@ class Role:
             sys.exit(0)
         return True
 
-    def prompt_apply_action(self) -> ApplyAction:
-        actions = ApplyAction.all()
+    def prompt_apply_action(
+        self, actions: Sequence[ApplyAction]
+    ) -> ApplyAction:
         while True:
             print(
                 Fore.CYAN
