@@ -7,7 +7,7 @@ import time
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import ClassVar, Iterator, Sequence
+from typing import Callable, ClassVar, Iterator, Sequence
 
 import selenium.webdriver.support.expected_conditions as ec
 from colorama import Fore, Style  # type: ignore
@@ -51,6 +51,17 @@ class Webdriver:
 
     def wait(self, timeout: float = 3) -> WebDriverWait:
         return WebDriverWait(self.driver, timeout)
+
+    def wait_el(
+        self,
+        locator: str,
+        condition: Callable[
+            [tuple[str, str]], Callable[[ec.WebDriverOrWebElement], WebElement]
+        ] = ec.presence_of_element_located,
+        by: str = By.XPATH,
+        timeout: float = 3,
+    ) -> WebElement:
+        return self.wait(timeout=timeout).until(condition((by, locator)))
 
     def navigate(self, url: str) -> WebdriverPage:
         self.driver.switch_to.window(self.driver.current_window_handle)
@@ -242,7 +253,7 @@ class ShopifyPosting(WebdriverPosting):
     patterns = [r":\/\/(www\.)?shopify\.com\/careers\/"]
 
     def prepare_application_form(self) -> bool:
-        application_h2 = self.webdriver.el("//h2[text()='Application']")
+        application_h2 = self.webdriver.wait_el("//h2[text()='Application']")
         if not application_h2.is_displayed():
             self._prepare_screening_questions()
             return True
@@ -250,6 +261,7 @@ class ShopifyPosting(WebdriverPosting):
         button.click()
         self._prefill_fields()
         self.webdriver.scroll(application_h2)
+        application_h2.click()
         return False
 
     def _prepare_screening_questions(self) -> None:
@@ -263,9 +275,9 @@ class ShopifyPosting(WebdriverPosting):
 
     def _prefill_fields(self) -> None:
         for text in [
-            "Do you have the right to work in your listed location?",
-            "Please confirm you've read and agree with our candidate NDA",
-            "Please confirm you've read our applicant privacy notice",
+            "Do you have the right to work",
+            "agree with our candidate NDA",
+            "applicant privacy notice",
         ]:
             try:
                 el = self.webdriver.el(
@@ -276,3 +288,13 @@ class ShopifyPosting(WebdriverPosting):
                 time.sleep(0.1)
             except NoSuchElementException:
                 pass
+        for el_name, value in [
+            ("_systemfield_name", config.full_name),
+            ("_systemfield_email", config.email),
+        ]:
+            if not value:
+                continue
+            with suppress(NoSuchElementException):
+                self.webdriver.el(f"//input[@name='{el_name}']").send_keys(
+                    value
+                )
