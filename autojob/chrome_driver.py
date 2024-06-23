@@ -7,7 +7,7 @@ import time
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, ClassVar, Iterator, Sequence
+from typing import Any, Callable, ClassVar, Iterator, Literal, Sequence
 
 import selenium.webdriver.support.expected_conditions as ec
 from colorama import Fore, Style  # type: ignore
@@ -52,17 +52,6 @@ class Webdriver:
     def wait(self, timeout: float = 3) -> WebDriverWait:
         return WebDriverWait(self.driver, timeout)
 
-    def wait_el(
-        self,
-        locator: str,
-        condition: Callable[
-            [tuple[str, str]], Callable[[ec.WebDriverOrWebElement], WebElement]
-        ] = ec.presence_of_element_located,
-        by: str = By.XPATH,
-        timeout: float = 3,
-    ) -> WebElement:
-        return self.wait(timeout=timeout).until(condition((by, locator)))
-
     def navigate(self, url: str) -> WebdriverPage:
         self.driver.switch_to.window(self.driver.current_window_handle)
         self.driver.implicitly_wait(3)
@@ -75,14 +64,46 @@ class Webdriver:
     def page(self, url: str) -> WebdriverPage:
         return WebdriverPage.from_url(self, url)
 
-    def el(self, xpath: str) -> WebElement:
-        return self.driver.find_element(By.XPATH, xpath)
+    def el(self, locator: str, by: str = By.XPATH) -> WebElement:
+        return self.driver.find_element(by, locator)
 
-    def el_all(self, xpath: str) -> Sequence[WebElement]:
-        return self.driver.find_elements(By.XPATH, xpath)
+    def el_all(self, locator: str, by: str = By.XPATH) -> Sequence[WebElement]:
+        return self.driver.find_elements(by, locator)
 
-    def scroll(self, element: WebElement) -> None:
-        self.driver.execute_script("arguments[0].scrollIntoView();", element)
+    def el_wait(
+        self,
+        locator: WebElement | str,
+        by: str = By.XPATH,
+        timeout: float = 3,
+        condition: Callable[
+            [Any],
+            Callable[[ec.WebDriverOrWebElement], WebElement | Literal[False]],
+        ] = ec.presence_of_element_located,
+    ) -> WebElement:
+        target = locator if isinstance(locator, WebElement) else (by, locator)
+        el = self.wait(timeout=timeout).until(condition(target))
+        if el is False:
+            raise NoSuchElementException(f"({target}) condition is False")
+        return el
+
+    def el_clickable(
+        self, locator: WebElement | str, by: str = By.XPATH
+    ) -> WebElement:
+        el = self.el_wait(locator, by, condition=ec.element_to_be_clickable)
+        self.scroll(el, block="center")
+        return el
+
+    def scroll(
+        self,
+        element: WebElement,
+        block: Literal["center", "start", "end", "nearest"] = "start",
+    ) -> None:
+        self.driver.execute_script(
+            "arguments[0].scrollIntoView("
+            "{block: '" + block + "', behavior: 'instant'}"
+            ");",
+            element,
+        )
 
     def save_pdf(self, dest: Path) -> None:
         pdf = self.driver.execute_cdp_cmd(
@@ -253,11 +274,13 @@ class ShopifyPosting(WebdriverPosting):
     patterns = [r":\/\/(www\.)?shopify\.com\/careers\/"]
 
     def prepare_application_form(self) -> bool:
-        application_h2 = self.webdriver.wait_el("//h2[text()='Application']")
+        application_h2 = self.webdriver.el_wait("//h2[text()='Application']")
         if not application_h2.is_displayed():
             self._prepare_screening_questions()
             return True
-        button = self.webdriver.el("//section/button[contains(., 'Submit')]")
+        button = self.webdriver.el_clickable(
+            "//section/button[contains(., 'Submit')]"
+        )
         button.click()
         self._prefill_fields()
         self.webdriver.scroll(application_h2)
@@ -265,11 +288,14 @@ class ShopifyPosting(WebdriverPosting):
         return False
 
     def _prepare_screening_questions(self) -> None:
-        button = self.webdriver.el("//button [contains(., 'Apply Now')]")
+        button = self.webdriver.el_clickable(
+            "//button [contains(., 'Apply Now')]"
+        )
         button.click()
         for checkbox in self.webdriver.el_all(
             "//input[@type='checkbox'][contains(@name, 'screening')]",
         ):
+            self.webdriver.el_clickable(checkbox)
             checkbox.click()
             time.sleep(0.1)
 
@@ -280,7 +306,7 @@ class ShopifyPosting(WebdriverPosting):
             "applicant privacy notice",
         ]:
             try:
-                el = self.webdriver.el(
+                el = self.webdriver.el_clickable(
                     f'//div[contains(text(), "{text}")]'
                     "/preceding-sibling::input[@type='checkbox']"
                 )
@@ -295,6 +321,6 @@ class ShopifyPosting(WebdriverPosting):
             if not value:
                 continue
             with suppress(NoSuchElementException):
-                self.webdriver.el(f"//input[@name='{el_name}']").send_keys(
-                    value
-                )
+                self.webdriver.el_clickable(
+                    f"//input[@name='{el_name}']"
+                ).send_keys(value)
