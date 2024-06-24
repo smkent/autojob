@@ -6,6 +6,7 @@ from datetime import datetime
 from functools import cache
 from typing import Any
 
+import dataclasses_json
 import requests
 from pandas import read_excel  # type: ignore
 
@@ -13,8 +14,20 @@ from .config import config
 from .roles import Roles
 
 
+def model_exclude(value: Any) -> bool:
+    if isinstance(value, str):
+        return value == ""
+    return value is None
+
+
+class Model(dataclasses_json.DataClassJsonMixin):
+    dataclass_json_config = dataclasses_json.config(
+        undefined=dataclasses_json.Undefined.EXCLUDE, exclude=model_exclude
+    )["dataclasses_json"]
+
+
 @dataclass
-class Company:
+class Company(Model):
     name: str
     hq: str
     url: str
@@ -23,24 +36,27 @@ class Company:
     employees_est_source: str
     how_found: str
     notes: str = ""
-    pk: int = 0
+    pk: int | None = None
     link: str = ""
 
 
 @dataclass
-class Posting:
-    company_name: str
+class Posting(Model):
+    company: Company
     url: str
     title: str
     location: str
     wa_jurisdiction: str = ""
     notes: str = ""
-    closed: datetime | None = None
+    closed: datetime | None = field(
+        default=None,
+        metadata=dataclasses_json.config(
+            encoder=datetime.isoformat, decoder=datetime.fromisoformat
+        ),
+    )
     closed_note: str = ""
-    pk: int = 0
+    pk: int | None = None
     link: str = ""
-    company_pk: int = 0
-    company: Company | None = None
 
 
 class API:
@@ -70,15 +86,9 @@ class API:
         self.request("companies", method="post", data=company_dict)
 
     def add_posting(self, posting: Posting) -> None:
-        if not posting.company and posting.company_pk:
-            posting.company = self.get_company(posting.company_pk)
-        if not posting.company and posting.company_name:
-            posting.company = self.get_company_by_name(posting.company_name)
         posting_dict = posting.__dict__.copy()
         posting_dict.pop("pk")
         posting_dict.pop("link")
-        posting_dict.pop("company_name")
-        posting_dict.pop("company_pk")
         posting_dict["company"] = posting_dict["company"].link
         if posting_dict["closed"]:
             posting_dict["closed"] = (
@@ -124,7 +134,6 @@ class SpreadsheetData:
         df = read_excel(
             config.spreadsheet,
             "Companies",
-            # skiprows=lambda x: x in [1],
         )
         for row_idx in range(0, len(df)):
             row = df.iloc[row_idx]
@@ -148,11 +157,13 @@ class SpreadsheetData:
         for row_idx in range(0, len(df)):
             row = df.iloc[row_idx]
             closed_note = row["Closed"] if row.notna()["Closed"] else ""
-            closed = datetime.now() if closed_note else None
+            closed = (
+                datetime.now().replace(microsecond=0) if closed_note else None
+            )
             if closed_note in {"x", "z"}:
                 closed_note = ""
             yield Posting(
-                company_name=row["Company"],
+                company=self.api.get_company_by_name(row["Company"]),
                 url=row["Role Posting URL"],
                 title=row["Role Title"],
                 location=row["Role Location"],
