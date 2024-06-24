@@ -12,6 +12,7 @@ from zipfile import ZipFile
 from colorama import Fore, Style  # type: ignore
 from dateutil.parser import parse as parse_date
 
+from .api import SpreadsheetData
 from .config import ConfigSetup, config
 from .roles import Roles
 from .utils import prompt_press_enter
@@ -52,7 +53,14 @@ class AutoJobApp:
         ap = ArgumentParser(description="Job application tools")
         ap.add_argument(
             "action",
-            choices=["apply", "check", "zip", "unzip", "config"],
+            choices=[
+                "apply",
+                "check",
+                "zip",
+                "unzip",
+                "config",
+                "data2api",
+            ],
             help="Action to perform",
         )
         ap.add_argument(
@@ -135,6 +143,8 @@ class AutoJobApp:
             self.zip()
         elif self.args.action == "unzip":
             self.unzip()
+        elif self.args.action == "data2api":
+            self.migrate_data_to_api()
         else:
             print(f"Unknown action {self.args.action}")
 
@@ -172,6 +182,10 @@ class AutoJobApp:
             _br(", ".join(sorted(config.compensation_words))),
         )
         print("")
+
+    def migrate_data_to_api(self) -> None:
+        sd = SpreadsheetData(roles=self.roles)
+        sd.migrate_to_api()
 
     def check(self) -> None:
         for role in self.roles.role_gen():
