@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from functools import cache
 from typing import Any
+from urllib.parse import quote
 
 import dataclasses_json
 import requests
@@ -85,6 +86,11 @@ class API:
         company_dict.pop("link")
         self.request("companies", method="post", data=company_dict)
 
+    @cache  # noqa
+    def get_posting_by_url(self, url: str) -> Posting:
+        data = self.request(f"postings/by_url/{quote(url)}")
+        return Posting(**data)
+
     def add_posting(self, posting: Posting) -> None:
         posting_dict = posting.__dict__.copy()
         posting_dict.pop("pk")
@@ -108,6 +114,13 @@ class SpreadsheetData:
 
     def migrate_companies_to_api(self) -> None:
         for company in self.companies_gen():
+            try:
+                self.api.get_company_by_name(company.name)
+                print(f"Company {company.name} exists")
+                continue
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code != 404:
+                    raise
             print(f"Adding company {company.name}")
             if ", " in company.careers_url:
                 print("Warning: dropping additional careers page URLs")
@@ -119,12 +132,14 @@ class SpreadsheetData:
 
     def migrate_postings_to_api(self) -> None:
         for posting in self.postings_gen():
-            company_name = (
-                posting.company.name
-                if posting.company
-                else str(posting.company_name or "")
-            )
-            print(f"Adding posting {company_name} / {posting.url}")
+            try:
+                self.api.get_posting_by_url(posting.url)
+                print(f"Posting {posting.url} exists")
+                continue
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code != 404:
+                    raise
+            print(f"Adding posting {posting.company.name} / {posting.url}")
             try:
                 self.api.add_posting(posting)
             except Exception as e:
