@@ -14,6 +14,10 @@ from pandas import read_excel  # type: ignore
 from .config import config
 from .roles import Roles
 
+DATETIME_FIELD_CONF = dataclasses_json.config(
+    encoder=datetime.isoformat, decoder=datetime.fromisoformat
+)
+
 
 def model_exclude(value: Any) -> bool:
     if isinstance(value, str):
@@ -49,15 +53,21 @@ class Posting(Model):
     location: str
     wa_jurisdiction: str = ""
     notes: str = ""
-    closed: datetime | None = field(
-        default=None,
-        metadata=dataclasses_json.config(
-            encoder=datetime.isoformat, decoder=datetime.fromisoformat
-        ),
-    )
+    closed: datetime | None = field(default=None, metadata=DATETIME_FIELD_CONF)
     closed_note: str = ""
     pk: int | None = None
     link: str = ""
+
+
+@dataclass
+class Application(Model):
+    posting: Posting
+    applied: datetime = field(metadata=DATETIME_FIELD_CONF)
+    reported: datetime | None = field(
+        default=None, metadata=DATETIME_FIELD_CONF
+    )
+    bona_fide: int | None = None
+    notes: str = ""
 
 
 class API:
@@ -111,6 +121,7 @@ class SpreadsheetData:
     def migrate_to_api(self) -> None:
         self.migrate_companies_to_api()
         self.migrate_postings_to_api()
+        self.migrate_applications_to_api()
 
     def migrate_companies_to_api(self) -> None:
         for company in self.companies_gen():
@@ -144,6 +155,9 @@ class SpreadsheetData:
                 self.api.add_posting(posting)
             except Exception as e:
                 print(f"Error adding posting {posting}: {e}")
+
+    def migrate_applications_to_api(self) -> None:
+        print("Migrate applications")
 
     def companies_gen(self) -> Iterator[Company]:
         df = read_excel(
