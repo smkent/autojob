@@ -90,7 +90,7 @@ class API:
     postings_by_url: dict[str, Posting] = field(default_factory=dict)
     applications_by_url: dict[str, Application] = field(default_factory=dict)
 
-    def request(
+    def request_raw(
         self, url: str, method: str = "get", *args: Any, **kwargs: Any
     ) -> Any:
         kwargs.setdefault("headers", {})
@@ -101,7 +101,48 @@ class API:
         kwargs["headers"]["Authorization"] = f"Bearer {config.api_key}"
         response = requests.request(method, config.api + url, *args, **kwargs)
         response.raise_for_status()
-        return response.json()
+        return response
+
+    def request(self, *args: Any, **kwargs: Any) -> Any:
+        return self.request_raw(*args, **kwargs).json()
+
+    def request_all(
+        self,
+        endpoint: str | None,
+        method: str = "get",
+        *args: Any,
+        **kwargs: Any,
+    ) -> Iterator[Any]:
+        while endpoint:
+            response = self.request_raw(endpoint)
+            if next_url := response.links.get("next", {}).get("url"):
+                endpoint = next_url.removeprefix(config.api)
+            else:
+                endpoint = None
+            yield from response.json()
+
+    def load_all(self) -> None:
+        self.load_companies()
+        self.load_postings()
+        self.load_applications()
+
+    def load_companies(self) -> None:
+        for data in self.request_all("companies?limit=100"):
+            self.cache_company(Company(**data))
+
+    def load_postings(self) -> None:
+        for data in self.request_all("postings?limit=100"):
+            data["company"] = self.get_company_by_link(data["company"])
+            self.cache_posting(Posting(**data))
+
+    def load_applications(self) -> None:
+        for data in self.request_all("applications?limit=100"):
+            data["posting"] = self.get_posting_by_link(data["posting"])
+            self.cache_application(Application(**data))
+
+    def cache_company(self, company: Company) -> None:
+        self.companies_by_link[company.link] = company
+        self.companies_by_name[company.name] = company
 
     def get_company_by_link(self, link: str) -> Company:
         if company := self.companies_by_link.get(link):
@@ -120,8 +161,7 @@ class API:
         data = self.request("companies", method="post", data=company_dict)
         saved_company = Company(**data)
         assert saved_company.link
-        self.companies_by_link[company.link] = saved_company
-        self.companies_by_name[company.name] = saved_company
+        self.cache_company(saved_company)
         return saved_company
 
     def get_posting_by_link(self, link: str) -> Posting:
@@ -146,9 +186,12 @@ class API:
         data["company"] = self.get_company_by_link(data["company"])
         saved_posting = Posting(**data)
         assert saved_posting.link
-        self.postings_by_link[posting.link] = saved_posting
-        self.postings_by_url[posting.url] = saved_posting
+        self.cache_posting(saved_posting)
         return saved_posting
+
+    def cache_posting(self, posting: Posting) -> None:
+        self.postings_by_link[posting.link] = posting
+        self.postings_by_url[posting.url] = posting
 
     def get_application_by_url(self, url: str) -> Application:
         if application := self.applications_by_url.get(url):
@@ -167,8 +210,11 @@ class API:
         data["posting"] = self.get_posting_by_link(data["posting"])
         saved_application = Application(**data)
         assert saved_application.link
-        self.applications_by_url[application.posting.url] = saved_application
+        self.cache_application(application)
         return saved_application
+
+    def cache_application(self, application: Application) -> None:
+        self.applications_by_url[application.posting.url] = application
 
 
 @dataclass
@@ -177,6 +223,7 @@ class SpreadsheetData:
     api: API = field(default_factory=API)
 
     def migrate_to_api(self) -> None:
+        self.api.load_all()
         self.migrate_companies_to_api()
         self.migrate_postings_to_api()
         self.migrate_applications_to_api()
