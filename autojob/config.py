@@ -65,6 +65,18 @@ class Config:
         return path
 
     @cached_property
+    def api(self) -> str:
+        if not self.raw:
+            return ""
+        return self.raw.get("api") or ""
+
+    @cached_property
+    def api_key(self) -> str:
+        if not self.raw:
+            return ""
+        return self.raw.get("api_key") or ""
+
+    @cached_property
     def dir(self) -> Path:
         return self.value_to_path("dir", HOME / "autojob").absolute()
 
