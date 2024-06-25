@@ -280,9 +280,12 @@ class SpreadsheetData:
         )
         for row_idx in range(0, len(df)):
             row = df.iloc[row_idx]
+            applied = pdrow(row, "Date Applied")
+            if not applied:
+                continue
             yield Application(
                 posting=self.api.get_posting_by_url(row["Role Posting URL"]),
-                applied=pdrow(row, "Date Applied"),
+                applied=applied,
                 reported=pdrow(row, "Sent to Legal"),
                 bona_fide=int(pdrow(row, "Bona fide rtg.", 0)) or None,
                 notes=pdrow(row, "Personal notes", ""),
