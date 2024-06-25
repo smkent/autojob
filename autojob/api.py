@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -9,14 +11,23 @@ from urllib.parse import quote
 
 import dataclasses_json
 import requests
-from pandas import read_excel  # type: ignore
+from pandas import Series  # type: ignore
+from pandas import Timestamp, read_excel
 
 from .config import config
 from .roles import Roles
 
-DATETIME_FIELD_CONF = dataclasses_json.config(
-    encoder=datetime.isoformat, decoder=datetime.fromisoformat
-)
+dataclasses_json.cfg.global_config.encoders[datetime] = datetime.isoformat
+dataclasses_json.cfg.global_config.decoders[datetime] = datetime.fromisoformat
+
+
+def pdrow(row: Series, key: str, default: Any = None) -> Any:
+    value = row[key] if row.notna()[key] else default
+    if isinstance(value, Timestamp):
+        value = value.to_pydatetime()
+    if isinstance(value, datetime):
+        value = value.replace(microsecond=0)
+    return value
 
 
 def model_exclude(value: Any) -> bool:
@@ -40,6 +51,7 @@ class Company(Model):
     employees_est: str
     employees_est_source: str
     how_found: str
+    careers_urls: list[str] = field(default_factory=list)
     notes: str = ""
     pk: int | None = None
     link: str = ""
@@ -53,7 +65,8 @@ class Posting(Model):
     location: str
     wa_jurisdiction: str = ""
     notes: str = ""
-    closed: datetime | None = field(default=None, metadata=DATETIME_FIELD_CONF)
+    job_board_urls: list[str] = field(default_factory=list)
+    closed: datetime | None = None
     closed_note: str = ""
     pk: int | None = None
     link: str = ""
@@ -62,12 +75,12 @@ class Posting(Model):
 @dataclass
 class Application(Model):
     posting: Posting
-    applied: datetime = field(metadata=DATETIME_FIELD_CONF)
-    reported: datetime | None = field(
-        default=None, metadata=DATETIME_FIELD_CONF
-    )
+    applied: datetime
+    reported: datetime | None = None
     bona_fide: int | None = None
     notes: str = ""
+    pk: int | None = None
+    link: str = ""
 
 
 class API:
@@ -75,6 +88,10 @@ class API:
         self, url: str, method: str = "get", *args: Any, **kwargs: Any
     ) -> Any:
         kwargs.setdefault("headers", {})
+        if data := kwargs.get("data"):
+            if isinstance(data, dict):
+                kwargs["data"] = json.dumps(data)
+            kwargs["headers"]["Content-Type"] = "application/json"
         kwargs["headers"]["Authorization"] = f"Bearer {config.api_key}"
         response = requests.request(method, config.api + url, *args, **kwargs)
         response.raise_for_status()
@@ -86,31 +103,48 @@ class API:
         return Company(**data)
 
     @cache  # noqa
+    def get_company_by_link(self, link: str) -> Company:
+        data = self.request(link.removeprefix(config.api))
+        return Company(**data)
+
+    @cache  # noqa
     def get_company_by_name(self, name: str) -> Company:
         data = self.request(f"companies/by_name/{name}")
         return Company(**data)
 
     def add_company(self, company: Company) -> None:
-        company_dict = company.__dict__
-        company_dict.pop("pk")
-        company_dict.pop("link")
+        company_dict = company.to_dict()
         self.request("companies", method="post", data=company_dict)
+
+    @cache  # noqa
+    def get_posting_by_link(self, link: str) -> Posting:
+        data = self.request(link.removeprefix(config.api))
+        data["company"] = self.get_company_by_link(data["company"])
+        return Posting(**data)
 
     @cache  # noqa
     def get_posting_by_url(self, url: str) -> Posting:
         data = self.request(f"postings/by_url/{quote(url)}")
+        data["company"] = self.get_company_by_link(data["company"])
         return Posting(**data)
 
     def add_posting(self, posting: Posting) -> None:
-        posting_dict = posting.__dict__.copy()
-        posting_dict.pop("pk")
-        posting_dict.pop("link")
-        posting_dict["company"] = posting_dict["company"].link
-        if posting_dict["closed"]:
-            posting_dict["closed"] = (
-                posting_dict["closed"].replace(microsecond=0).isoformat()
-            )
+        posting_dict = posting.to_dict()
+        assert isinstance(posting_dict["company"], dict)
+        posting_dict["company"] = posting_dict["company"]["link"]
         self.request("postings", method="post", data=posting_dict)
+
+    @cache  # noqa
+    def get_application_by_url(self, url: str) -> Application:
+        data = self.request(f"applications/by_url/{quote(url)}")
+        data["posting"] = self.get_posting_by_link(data["posting"])
+        return Application(**data)
+
+    def add_application(self, application: Application) -> None:
+        application_dict = application.to_dict()
+        assert isinstance(application_dict["posting"], dict)
+        application_dict["posting"] = application_dict["posting"]["link"]
+        self.request("applications", method="post", data=application_dict)
 
 
 @dataclass
@@ -157,7 +191,25 @@ class SpreadsheetData:
                 print(f"Error adding posting {posting}: {e}")
 
     def migrate_applications_to_api(self) -> None:
-        print("Migrate applications")
+        for application in self.applications_gen():
+            try:
+                self.api.get_application_by_url(application.posting.url)
+                print(
+                    f"Application for {application.posting.company.name}"
+                    f" / {application.posting.url} exists"
+                )
+                continue
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code != 404:
+                    raise
+            print(
+                f"Adding application for {application.posting.company.name}"
+                f" / {application.posting.url}"
+            )
+            try:
+                self.api.add_application(application)
+            except Exception as e:
+                print(f"Error adding application {application}: {e}")
 
     def companies_gen(self) -> Iterator[Company]:
         df = read_excel(
@@ -166,15 +218,20 @@ class SpreadsheetData:
         )
         for row_idx in range(0, len(df)):
             row = df.iloc[row_idx]
+            carray = row["Careers Pages"].strip().split(", ")
+            careers_url = carray.pop(0)
+            if cmore := pdrow(row, "Additional Careers URLs", ""):
+                carray += cmore.split(", ")
             yield Company(
-                row["Company"],
-                row["HQ location"],
-                row["URL"],
-                row["Careers Pages"],
-                row["# Employees"],
-                row["# Employees Source"],
-                row["How Found"],
-                row["Notes"] if row.notna()["Notes"] else "",
+                name=row["Company"].strip(),
+                hq=row["HQ location"],
+                url=row["URL"],
+                careers_url=careers_url,
+                careers_urls=carray,
+                employees_est=row["# Employees"],
+                employees_est_source=row["# Employees Source"],
+                how_found=row["How Found"],
+                notes=row["Notes"] if row.notna()["Notes"] else "",
             )
 
     def postings_gen(self) -> Iterator[Posting]:
@@ -191,9 +248,14 @@ class SpreadsheetData:
             )
             if closed_note in {"x", "z"}:
                 closed_note = ""
+            if more_urls := pdrow(row, "Job Board URL", ""):
+                more_urls = [
+                    u.strip() for u in more_urls.strip().split(os.linesep)
+                ]
             yield Posting(
                 company=self.api.get_company_by_name(row["Company"]),
                 url=row["Role Posting URL"],
+                job_board_urls=more_urls or [],
                 title=row["Role Title"],
                 location=row["Role Location"],
                 wa_jurisdiction=(
@@ -208,4 +270,20 @@ class SpreadsheetData:
                 ),
                 closed=closed,
                 closed_note=closed_note,
+            )
+
+    def applications_gen(self) -> Iterator[Application]:
+        df = read_excel(
+            config.spreadsheet,
+            config.spreadsheet_tab,
+            skiprows=lambda x: x in [1],
+        )
+        for row_idx in range(0, len(df)):
+            row = df.iloc[row_idx]
+            yield Application(
+                posting=self.api.get_posting_by_url(row["Role Posting URL"]),
+                applied=pdrow(row, "Date Applied"),
+                reported=pdrow(row, "Sent to Legal"),
+                bona_fide=int(pdrow(row, "Bona fide rtg.", 0)) or None,
+                notes=pdrow(row, "Personal notes", ""),
             )
