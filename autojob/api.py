@@ -294,7 +294,7 @@ class SpreadsheetData:
             if cmore := pdrow(row, "Additional Careers URLs", ""):
                 carray += cmore.split(", ")
             yield Company(
-                name=row["Company"].strip(),
+                name=str(row["Company"]).strip(),
                 hq=row["HQ location"],
                 url=row["URL"],
                 careers_url=careers_url,
@@ -324,7 +324,9 @@ class SpreadsheetData:
                     u.strip() for u in more_urls.strip().split(os.linesep)
                 ]
             yield Posting(
-                company=self.api.get_company_by_name(row["Company"]),
+                company=self.api.get_company_by_name(
+                    str(row["Company"]).strip()
+                ),
                 url=row["Role Posting URL"],
                 job_board_urls=more_urls or [],
                 title=row["Role Title"],
