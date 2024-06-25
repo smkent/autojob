@@ -90,6 +90,8 @@ class API:
     postings_by_url: dict[str, Posting] = field(default_factory=dict)
     applications_by_url: dict[str, Application] = field(default_factory=dict)
 
+    api_limit: int = field(init=False, default=1000)
+
     def request_raw(
         self, url: str, method: str = "get", *args: Any, **kwargs: Any
     ) -> Any:
@@ -127,16 +129,16 @@ class API:
         self.load_applications()
 
     def load_companies(self) -> None:
-        for data in self.request_all("companies?limit=100"):
+        for data in self.request_all(f"companies?limit={self.api_limit}"):
             self.cache_company(Company(**data))
 
     def load_postings(self) -> None:
-        for data in self.request_all("postings?limit=100"):
+        for data in self.request_all(f"postings?limit={self.api_limit}"):
             data["company"] = self.get_company_by_link(data["company"])
             self.cache_posting(Posting(**data))
 
     def load_applications(self) -> None:
-        for data in self.request_all("applications?limit=100"):
+        for data in self.request_all(f"applications?limit={self.api_limit}"):
             data["posting"] = self.get_posting_by_link(data["posting"])
             self.cache_application(Application(**data))
 
