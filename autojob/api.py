@@ -5,7 +5,6 @@ import os
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
-from functools import cache
 from typing import Any
 from urllib.parse import quote
 
@@ -83,7 +82,14 @@ class Application(Model):
     link: str = ""
 
 
+@dataclass
 class API:
+    companies_by_link: dict[str, Company] = field(default_factory=dict)
+    companies_by_name: dict[str, Company] = field(default_factory=dict)
+    postings_by_link: dict[str, Posting] = field(default_factory=dict)
+    postings_by_url: dict[str, Posting] = field(default_factory=dict)
+    applications_by_url: dict[str, Application] = field(default_factory=dict)
+
     def request(
         self, url: str, method: str = "get", *args: Any, **kwargs: Any
     ) -> Any:
@@ -97,54 +103,72 @@ class API:
         response.raise_for_status()
         return response.json()
 
-    @cache  # noqa
-    def get_company(self, pk: int) -> Company:
-        data = self.request(f"companies/{pk}")
-        return Company(**data)
-
-    @cache  # noqa
     def get_company_by_link(self, link: str) -> Company:
+        if company := self.companies_by_link.get(link):
+            return company
         data = self.request(link.removeprefix(config.api))
         return Company(**data)
 
-    @cache  # noqa
     def get_company_by_name(self, name: str) -> Company:
+        if company := self.companies_by_name.get(name):
+            return company
         data = self.request(f"companies/by_name/{name}")
         return Company(**data)
 
-    def add_company(self, company: Company) -> None:
+    def add_company(self, company: Company) -> Company:
         company_dict = company.to_dict()
-        self.request("companies", method="post", data=company_dict)
+        data = self.request("companies", method="post", data=company_dict)
+        saved_company = Company(**data)
+        assert saved_company.link
+        self.companies_by_link[company.link] = saved_company
+        self.companies_by_name[company.name] = saved_company
+        return saved_company
 
-    @cache  # noqa
     def get_posting_by_link(self, link: str) -> Posting:
+        if posting := self.postings_by_link.get(link):
+            return posting
         data = self.request(link.removeprefix(config.api))
         data["company"] = self.get_company_by_link(data["company"])
         return Posting(**data)
 
-    @cache  # noqa
     def get_posting_by_url(self, url: str) -> Posting:
+        if posting := self.postings_by_url.get(url):
+            return posting
         data = self.request(f"postings/by_url/{quote(url)}")
         data["company"] = self.get_company_by_link(data["company"])
         return Posting(**data)
 
-    def add_posting(self, posting: Posting) -> None:
+    def add_posting(self, posting: Posting) -> Posting:
         posting_dict = posting.to_dict()
         assert isinstance(posting_dict["company"], dict)
         posting_dict["company"] = posting_dict["company"]["link"]
-        self.request("postings", method="post", data=posting_dict)
+        data = self.request("postings", method="post", data=posting_dict)
+        data["company"] = self.get_company_by_link(data["company"])
+        saved_posting = Posting(**data)
+        assert saved_posting.link
+        self.postings_by_link[posting.link] = saved_posting
+        self.postings_by_url[posting.url] = saved_posting
+        return saved_posting
 
-    @cache  # noqa
     def get_application_by_url(self, url: str) -> Application:
+        if application := self.applications_by_url.get(url):
+            return application
         data = self.request(f"applications/by_url/{quote(url)}")
         data["posting"] = self.get_posting_by_link(data["posting"])
         return Application(**data)
 
-    def add_application(self, application: Application) -> None:
+    def add_application(self, application: Application) -> Application:
         application_dict = application.to_dict()
         assert isinstance(application_dict["posting"], dict)
         application_dict["posting"] = application_dict["posting"]["link"]
-        self.request("applications", method="post", data=application_dict)
+        data = self.request(
+            "applications", method="post", data=application_dict
+        )
+        data["posting"] = self.get_posting_by_link(data["posting"])
+        saved_application = Application(**data)
+        assert saved_application.link
+        self.applications_by_url[application.posting.url] = saved_application
+        return saved_application
 
 
 @dataclass
