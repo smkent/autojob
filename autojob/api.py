@@ -5,12 +5,12 @@ import os
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
-from functools import cache
 from typing import Any
 from urllib.parse import quote
 
 import dataclasses_json
 import requests
+from dataclasses_json.core import Json
 from pandas import Series  # type: ignore
 from pandas import Timestamp, read_excel
 
@@ -53,8 +53,14 @@ class Company(Model):
     how_found: str
     careers_urls: list[str] = field(default_factory=list)
     notes: str = ""
-    pk: int | None = None
-    link: str = ""
+    pk: int | None = field(default=None, compare=False)
+    link: str = field(default="", compare=False)
+
+    @classmethod
+    def from_dict(cls, kvs: Json, *args: Any, **kwargs: Any) -> Company:
+        if isinstance(kvs, dict) and not kvs.get("careers_urls"):
+            kvs["careers_urls"] = []
+        return super().from_dict(kvs, *args, **kwargs)
 
 
 @dataclass
@@ -68,8 +74,14 @@ class Posting(Model):
     job_board_urls: list[str] = field(default_factory=list)
     closed: datetime | None = None
     closed_note: str = ""
-    pk: int | None = None
-    link: str = ""
+    pk: int | None = field(default=None, compare=False)
+    link: str = field(default="", compare=False)
+
+    @classmethod
+    def from_dict(cls, kvs: Json, *args: Any, **kwargs: Any) -> Posting:
+        if isinstance(kvs, dict) and not kvs.get("job_board_urls"):
+            kvs["job_board_urls"] = []
+        return super().from_dict(kvs, *args, **kwargs)
 
 
 @dataclass
@@ -79,12 +91,21 @@ class Application(Model):
     reported: datetime | None = None
     bona_fide: int | None = None
     notes: str = ""
-    pk: int | None = None
-    link: str = ""
+    pk: int | None = field(default=None, compare=False)
+    link: str = field(default="", compare=False)
 
 
+@dataclass
 class API:
-    def request(
+    companies_by_link: dict[str, Company] = field(default_factory=dict)
+    companies_by_name: dict[str, Company] = field(default_factory=dict)
+    postings_by_link: dict[str, Posting] = field(default_factory=dict)
+    postings_by_url: dict[str, Posting] = field(default_factory=dict)
+    applications_by_url: dict[str, Application] = field(default_factory=dict)
+
+    api_limit: int = field(init=False, default=1000)
+
+    def request_raw(
         self, url: str, method: str = "get", *args: Any, **kwargs: Any
     ) -> Any:
         kwargs.setdefault("headers", {})
@@ -93,58 +114,128 @@ class API:
                 kwargs["data"] = json.dumps(data)
             kwargs["headers"]["Content-Type"] = "application/json"
         kwargs["headers"]["Authorization"] = f"Bearer {config.api_key}"
-        response = requests.request(method, config.api + url, *args, **kwargs)
+        if not url.startswith(config.api):
+            url = config.api + url
+        response = requests.request(method, url, *args, **kwargs)
         response.raise_for_status()
-        return response.json()
+        return response
 
-    @cache  # noqa
-    def get_company(self, pk: int) -> Company:
-        data = self.request(f"companies/{pk}")
-        return Company(**data)
+    def request(self, *args: Any, **kwargs: Any) -> Any:
+        return self.request_raw(*args, **kwargs).json()
 
-    @cache  # noqa
+    def request_all(
+        self,
+        endpoint: str | None,
+        method: str = "get",
+        *args: Any,
+        **kwargs: Any,
+    ) -> Iterator[Any]:
+        while endpoint:
+            response = self.request_raw(endpoint)
+            if next_url := response.links.get("next", {}).get("url"):
+                endpoint = next_url
+            else:
+                endpoint = None
+            yield from response.json()
+
+    def load_all(self) -> None:
+        self.load_companies()
+        self.load_postings()
+        # self.load_applications()
+
+    def load_companies(self) -> None:
+        for data in self.request_all(f"companies?limit={self.api_limit}"):
+            self.cache_company(Company.from_dict(data))
+
+    def load_postings(self) -> None:
+        for data in self.request_all(f"postings?limit={self.api_limit}"):
+            data["company"] = self.get_company_by_link(data["company"])
+            self.cache_posting(Posting.from_dict(data))
+
+    def load_applications(self) -> None:
+        for data in self.request_all(f"applications?limit={self.api_limit}"):
+            data["posting"] = self.get_posting_by_link(data["posting"])
+            self.cache_application(Application.from_dict(data))
+
+    def cache_company(self, company: Company) -> None:
+        self.companies_by_link[company.link] = company
+        self.companies_by_name[company.name] = company
+
     def get_company_by_link(self, link: str) -> Company:
-        data = self.request(link.removeprefix(config.api))
-        return Company(**data)
+        if company := self.companies_by_link.get(link):
+            return company
+        data = self.request(link)
+        return Company.from_dict(data)
 
-    @cache  # noqa
     def get_company_by_name(self, name: str) -> Company:
+        if company := self.companies_by_name.get(name):
+            return company
         data = self.request(f"companies/by_name/{name}")
-        return Company(**data)
+        return Company.from_dict(data)
 
-    def add_company(self, company: Company) -> None:
+    def save_company(self, company: Company) -> Company:
+        url = company.link if company.link else "companies"
+        method = "put" if company.link else "post"
         company_dict = company.to_dict()
-        self.request("companies", method="post", data=company_dict)
+        data = self.request(url, method=method, data=company_dict)
+        saved_company = Company.from_dict(data)
+        assert saved_company.link
+        self.cache_company(saved_company)
+        return saved_company
 
-    @cache  # noqa
     def get_posting_by_link(self, link: str) -> Posting:
-        data = self.request(link.removeprefix(config.api))
+        if posting := self.postings_by_link.get(link):
+            return posting
+        data = self.request(link)
         data["company"] = self.get_company_by_link(data["company"])
-        return Posting(**data)
+        return Posting.from_dict(data)
 
-    @cache  # noqa
     def get_posting_by_url(self, url: str) -> Posting:
+        if posting := self.postings_by_url.get(url):
+            return posting
         data = self.request(f"postings/by_url/{quote(url)}")
         data["company"] = self.get_company_by_link(data["company"])
-        return Posting(**data)
+        return Posting.from_dict(data)
 
-    def add_posting(self, posting: Posting) -> None:
+    def save_posting(self, posting: Posting) -> Posting:
+        url = posting.link if posting.link else "postings"
+        method = "put" if posting.link else "post"
         posting_dict = posting.to_dict()
         assert isinstance(posting_dict["company"], dict)
         posting_dict["company"] = posting_dict["company"]["link"]
-        self.request("postings", method="post", data=posting_dict)
+        data = self.request(url, method=method, data=posting_dict)
+        data["company"] = self.get_company_by_link(data["company"])
+        saved_posting = Posting.from_dict(data)
+        assert saved_posting.link
+        self.cache_posting(saved_posting)
+        return saved_posting
 
-    @cache  # noqa
+    def cache_posting(self, posting: Posting) -> None:
+        self.postings_by_link[posting.link] = posting
+        self.postings_by_url[posting.url] = posting
+
     def get_application_by_url(self, url: str) -> Application:
+        if application := self.applications_by_url.get(url):
+            return application
         data = self.request(f"applications/by_url/{quote(url)}")
         data["posting"] = self.get_posting_by_link(data["posting"])
-        return Application(**data)
+        return Application.from_dict(data)
 
-    def add_application(self, application: Application) -> None:
+    def add_application(self, application: Application) -> Application:
         application_dict = application.to_dict()
         assert isinstance(application_dict["posting"], dict)
         application_dict["posting"] = application_dict["posting"]["link"]
-        self.request("applications", method="post", data=application_dict)
+        data = self.request(
+            "applications", method="post", data=application_dict
+        )
+        data["posting"] = self.get_posting_by_link(data["posting"])
+        saved_application = Application.from_dict(data)
+        assert saved_application.link
+        self.cache_application(application)
+        return saved_application
+
+    def cache_application(self, application: Application) -> None:
+        self.applications_by_url[application.posting.url] = application
 
 
 @dataclass
@@ -153,40 +244,46 @@ class SpreadsheetData:
     api: API = field(default_factory=API)
 
     def migrate_to_api(self) -> None:
-        self.migrate_companies_to_api()
+        self.api.load_all()
+        # self.migrate_companies_to_api()
         self.migrate_postings_to_api()
-        self.migrate_applications_to_api()
+        # self.migrate_applications_to_api()
 
     def migrate_companies_to_api(self) -> None:
         for company in self.companies_gen():
             try:
-                self.api.get_company_by_name(company.name)
-                print(f"Company {company.name} exists")
-                continue
+                existing_company = self.api.get_company_by_name(company.name)
+                if company == existing_company:
+                    continue
+                company.link = existing_company.link
+                print(f"Company {company.name} differs")
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code != 404:
                     raise
-            print(f"Adding company {company.name}")
-            if ", " in company.careers_url:
-                print("Warning: dropping additional careers page URLs")
-                company.careers_url = company.careers_url.split(", ", 1)[0]
+                print(f"Adding company {company.name}")
             try:
-                self.api.add_company(company)
+                self.api.save_company(company)
             except Exception as e:
-                print(f"Error adding company {company}: {e}")
+                print(f"Error saving company {company}: {e}")
 
     def migrate_postings_to_api(self) -> None:
         for posting in self.postings_gen():
             try:
-                self.api.get_posting_by_url(posting.url)
-                print(f"Posting {posting.url} exists")
+                existing_posting = self.api.get_posting_by_url(posting.url)
+                if posting == existing_posting:
+                    continue
+                posting.link = existing_posting.link
+                print(f"Posting {posting.url} differs")
+                print(posting)
+                print(existing_posting)
+                break
                 continue
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code != 404:
                     raise
             print(f"Adding posting {posting.company.name} / {posting.url}")
             try:
-                self.api.add_posting(posting)
+                self.api.save_posting(posting)
             except Exception as e:
                 print(f"Error adding posting {posting}: {e}")
 
@@ -223,12 +320,12 @@ class SpreadsheetData:
             if cmore := pdrow(row, "Additional Careers URLs", ""):
                 carray += cmore.split(", ")
             yield Company(
-                name=row["Company"].strip(),
+                name=str(row["Company"]).strip(),
                 hq=row["HQ location"],
                 url=row["URL"],
                 careers_url=careers_url,
                 careers_urls=carray,
-                employees_est=row["# Employees"],
+                employees_est=str(row["# Employees"]),
                 employees_est_source=row["# Employees Source"],
                 how_found=row["How Found"],
                 notes=row["Notes"] if row.notna()["Notes"] else "",
@@ -253,7 +350,9 @@ class SpreadsheetData:
                     u.strip() for u in more_urls.strip().split(os.linesep)
                 ]
             yield Posting(
-                company=self.api.get_company_by_name(row["Company"]),
+                company=self.api.get_company_by_name(
+                    str(row["Company"]).strip()
+                ),
                 url=row["Role Posting URL"],
                 job_board_urls=more_urls or [],
                 title=row["Role Title"],
