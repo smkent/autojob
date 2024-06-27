@@ -44,7 +44,8 @@ class ApplyAction(StrEnum):
             actions.append(ApplyAction.INCOGNITO)
         actions += [
             ApplyAction.FINISH_ROLE,
-            ApplyAction.CANCEL_ROLE,
+            ApplyAction.CLOSE_ROLE,
+            ApplyAction.SKIP,
             ApplyAction.QUIT,
         ]
         return actions
@@ -61,10 +62,11 @@ class ApplyAction(StrEnum):
     INCOGNITO = "i", "Re-open posting in incognito mode"
     POSTING = "p", "Re-save posting PDF from current page"
     FINISH_ROLE = "n", "Next role"
-    CANCEL_ROLE = (
-        "cancel",
-        "Cancel/skip this role and remove its files (e.g. role is closed)",
+    CLOSE_ROLE = (
+        "close",
+        "Mark this role as closed for everyone and remove its files",
     )
+    SKIP = "skip", "Skip role and remove its files"
     QUIT = "q", "Quit"
 
 
@@ -139,7 +141,11 @@ class Role:
             return False
         elif action == ApplyAction.POSTING:
             webdriver.save_pdf(self.posting_pdf_path)
-        elif action == ApplyAction.CANCEL_ROLE:
+        elif action == ApplyAction.SKIP:
+            self.apply_cancel()
+            return False
+        elif action == ApplyAction.CLOSE_ROLE:
+            self.apply_close_role()
             self.apply_cancel()
             return False
         elif action == ApplyAction.FINISH_ROLE:
@@ -208,6 +214,20 @@ class Role:
             if self.posting_pdf_path.is_file():
                 self.check_posting_pdf()
             return page
+
+    def apply_close_role(self) -> None:
+        note = input("(Optional) Role closed note: ").strip()
+        print("")
+        self.posting.closed = datetime.now()
+        self.posting.closed_note = note or ""
+        self.api.save_posting(self.posting)
+        print(
+            "Marked role as closed: "
+            + Style.BRIGHT
+            + self.posting.link
+            + Style.RESET_ALL
+        )
+        print("")
 
     def apply_cancel(self) -> None:
         if self.role_path.is_dir():
