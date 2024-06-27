@@ -5,7 +5,6 @@ import os
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from pprint import pprint
 from typing import Any
 from urllib.parse import quote
 
@@ -303,9 +302,6 @@ class SpreadsheetData:
                     f"Application for {application.posting.company.name}"
                     f" / {application.posting.url} differs"
                 )
-                pprint(existing_application)
-                pprint(application)
-                continue
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code != 404:
                     raise
