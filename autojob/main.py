@@ -11,7 +11,7 @@ from dateutil.parser import parse as parse_date
 
 from .api import SpreadsheetData
 from .config import ConfigSetup, config
-from .roles_api import Roles
+from .roles import Roles
 
 
 class AutoJobApp:
