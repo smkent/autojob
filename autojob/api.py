@@ -5,7 +5,6 @@ import os
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from pprint import pprint
 from typing import Any
 from urllib.parse import quote
 
@@ -229,12 +228,12 @@ class API:
         return Application.from_dict(data)
 
     def save_application(self, application: Application) -> Application:
+        url = application.link if application.link else "postings"
+        method = "put" if application.link else "post"
         application_dict = application.to_dict()
         assert isinstance(application_dict["posting"], dict)
         application_dict["posting"] = application_dict["posting"]["link"]
-        data = self.request(
-            "applications", method="post", data=application_dict
-        )
+        data = self.request(url, method=method, data=application_dict)
         data["posting"] = self.get_posting_by_link(data["posting"])
         saved_application = Application.from_dict(data)
         assert saved_application.link
@@ -277,6 +276,8 @@ class SpreadsheetData:
         for posting in self.postings_gen():
             try:
                 existing_posting = self.api.get_posting_by_url(posting.url)
+                if existing_posting.closed and posting.closed:
+                    posting.closed = existing_posting.closed
                 if posting == existing_posting:
                     continue
                 posting.link = existing_posting.link
@@ -303,9 +304,6 @@ class SpreadsheetData:
                     f"Application for {application.posting.company.name}"
                     f" / {application.posting.url} differs"
                 )
-                pprint(existing_application)
-                pprint(application)
-                continue
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code != 404:
                     raise
@@ -366,7 +364,7 @@ class SpreadsheetData:
                 ),
                 url=row["Role Posting URL"],
                 job_board_urls=more_urls or [],
-                title=row["Role Title"],
+                title=row["Role Title"].strip(),
                 location=row["Role Location"],
                 wa_jurisdiction=(
                     row["WA jurisdiction if remote"]
