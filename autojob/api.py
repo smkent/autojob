@@ -228,12 +228,12 @@ class API:
         return Application.from_dict(data)
 
     def save_application(self, application: Application) -> Application:
+        url = application.link if application.link else "postings"
+        method = "put" if application.link else "post"
         application_dict = application.to_dict()
         assert isinstance(application_dict["posting"], dict)
         application_dict["posting"] = application_dict["posting"]["link"]
-        data = self.request(
-            "applications", method="post", data=application_dict
-        )
+        data = self.request(url, method=method, data=application_dict)
         data["posting"] = self.get_posting_by_link(data["posting"])
         saved_application = Application.from_dict(data)
         assert saved_application.link
