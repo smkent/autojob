@@ -16,7 +16,7 @@ from colorama import Fore, Style  # type: ignore
 from pypdf import PdfReader
 from slugify import slugify
 
-from .api import API, Posting
+from .api import API, Application, Posting
 from .chrome_driver import Webdriver, WebdriverPage
 from .config import config
 
@@ -143,6 +143,16 @@ class Role:
             self.apply_cancel()
             return False
         elif action == ApplyAction.FINISH_ROLE:
+            application = self.api.save_application(
+                Application(posting=self.posting)
+            )
+            print(
+                "Saved application: "
+                + Style.BRIGHT
+                + application.link
+                + Style.RESET_ALL
+            )
+            print("")
             return False
         elif action == ApplyAction.QUIT:
             self.apply_quit()
