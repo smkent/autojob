@@ -4,7 +4,8 @@ import json
 import os
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
+from pprint import pprint
 from typing import Any
 from urllib.parse import quote
 
@@ -27,6 +28,8 @@ def pdrow(row: Series, key: str, default: Any = None) -> Any:
         value = value.to_pydatetime()
     if isinstance(value, datetime):
         value = value.replace(microsecond=0)
+        if not value.tzinfo:
+            value = value.replace(tzinfo=timezone.utc)
     return value
 
 
@@ -87,7 +90,11 @@ class Posting(Model):
 @dataclass
 class Application(Model):
     posting: Posting
-    applied: datetime
+    applied: datetime = field(
+        metadata=dataclasses_json.config(
+            encoder=datetime.isoformat, decoder=datetime.fromisoformat
+        )
+    )
     reported: datetime | None = None
     bona_fide: int | None = None
     notes: str = ""
@@ -141,7 +148,7 @@ class API:
     def load_all(self) -> None:
         self.load_companies()
         self.load_postings()
-        # self.load_applications()
+        self.load_applications()
 
     def load_companies(self) -> None:
         for data in self.request_all(f"companies?limit={self.api_limit}"):
@@ -221,7 +228,7 @@ class API:
         data["posting"] = self.get_posting_by_link(data["posting"])
         return Application.from_dict(data)
 
-    def add_application(self, application: Application) -> Application:
+    def save_application(self, application: Application) -> Application:
         application_dict = application.to_dict()
         assert isinstance(application_dict["posting"], dict)
         application_dict["posting"] = application_dict["posting"]["link"]
@@ -245,9 +252,9 @@ class SpreadsheetData:
 
     def migrate_to_api(self) -> None:
         self.api.load_all()
-        # self.migrate_companies_to_api()
+        self.migrate_companies_to_api()
         self.migrate_postings_to_api()
-        # self.migrate_applications_to_api()
+        self.migrate_applications_to_api()
 
     def migrate_companies_to_api(self) -> None:
         for company in self.companies_gen():
@@ -274,14 +281,10 @@ class SpreadsheetData:
                     continue
                 posting.link = existing_posting.link
                 print(f"Posting {posting.url} differs")
-                print(posting)
-                print(existing_posting)
-                break
-                continue
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code != 404:
                     raise
-            print(f"Adding posting {posting.company.name} / {posting.url}")
+                print(f"Adding posting {posting.company.name} / {posting.url}")
             try:
                 self.api.save_posting(posting)
             except Exception as e:
@@ -290,21 +293,29 @@ class SpreadsheetData:
     def migrate_applications_to_api(self) -> None:
         for application in self.applications_gen():
             try:
-                self.api.get_application_by_url(application.posting.url)
+                existing_application = self.api.get_application_by_url(
+                    application.posting.url
+                )
+                if application == existing_application:
+                    continue
+                application.link = existing_application.link
                 print(
                     f"Application for {application.posting.company.name}"
-                    f" / {application.posting.url} exists"
+                    f" / {application.posting.url} differs"
                 )
+                pprint(existing_application)
+                pprint(application)
                 continue
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code != 404:
                     raise
-            print(
-                f"Adding application for {application.posting.company.name}"
-                f" / {application.posting.url}"
-            )
+                print(
+                    "Adding application for"
+                    f" {application.posting.company.name}"
+                    f" / {application.posting.url}"
+                )
             try:
-                self.api.add_application(application)
+                self.api.save_application(application)
             except Exception as e:
                 print(f"Error adding application {application}: {e}")
 
