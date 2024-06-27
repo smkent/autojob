@@ -15,7 +15,6 @@ from pandas import Series  # type: ignore
 from pandas import Timestamp, read_excel
 
 from .config import config
-from .roles import Roles
 
 dataclasses_json.cfg.global_config.encoders[datetime] = datetime.isoformat
 dataclasses_json.cfg.global_config.decoders[datetime] = datetime.fromisoformat
@@ -251,7 +250,6 @@ class API:
 
 @dataclass
 class SpreadsheetData:
-    roles: Roles
     api: API = field(default_factory=API)
 
     def migrate_to_api(self) -> None:

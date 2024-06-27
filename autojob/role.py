@@ -13,10 +13,10 @@ from pathlib import Path
 from typing import Sequence
 
 from colorama import Fore, Style  # type: ignore
-from pandas import Series  # type: ignore
 from pypdf import PdfReader
 from slugify import slugify
 
+from .api import API, Posting
 from .chrome_driver import Webdriver, WebdriverPage
 from .config import config
 
@@ -89,51 +89,16 @@ class RoleChecks:
 
 @dataclass
 class Role:
+    api: API
+    posting: Posting
     resume: Path | None
-    company: str
-    role_title: str
-    role_url: str
-    role_job_board_urls: list[str] = field(default_factory=list)
-    closed: bool = False
     date_applied: datetime | None = None
-    sent_to_legal: datetime | None = None
+    reported: datetime | None = None
     role_num: int = 0
     save_posting: bool = False
     saved_file_counts: dict[str, int] = field(
         default_factory=lambda: defaultdict(int)
     )
-
-    @staticmethod
-    def from_spreadsheet_row(
-        row: Series,
-        resume: Path | None = None,
-        role_num: int = 0,
-        save_posting: bool = False,
-    ) -> Role:
-        return Role(
-            resume=resume,
-            company=row["Company"],
-            role_title=row["Role Title"],
-            role_url=row["Role Posting URL"],
-            role_job_board_urls=(
-                row["Job Board URL"].strip().split(os.linesep)
-                if row.notna()["Job Board URL"] and row["Job Board URL"]
-                else []
-            ),
-            closed=row.notna()["Closed"],
-            date_applied=(
-                row["Date Applied"].to_pydatetime()
-                if row.notna()["Date Applied"]
-                else None
-            ),
-            sent_to_legal=(
-                row["Sent to Legal"].to_pydatetime()
-                if row.notna()["Sent to Legal"]
-                else None
-            ),
-            role_num=role_num,
-            save_posting=save_posting,
-        )
 
     def apply(self) -> None:
         page = self.apply_prep()
@@ -225,10 +190,10 @@ class Role:
             role_resume_path = self.role_path / self.resume.name
             if not role_resume_path.exists():
                 shutil.copy(self.resume, role_resume_path)
-        if self.save_posting and self.role_job_board_urls:
+        if self.save_posting and self.posting.job_board_urls:
             self.save_job_board_postings()
         with chrome_driver() as webdriver:
-            page = webdriver.navigate(self.role_url)
+            page = webdriver.navigate(self.posting.url)
             if self.save_posting and not self.posting_pdf_path.exists():
                 time.sleep(0.5)
                 webdriver.save_pdf(self.posting_pdf_path)
@@ -268,7 +233,7 @@ class Role:
 
     def save_job_board_postings(self) -> None:
         with chrome_driver() as webdriver:
-            for jb_url in self.role_job_board_urls:
+            for jb_url in self.posting.job_board_urls:
                 page = webdriver.page(jb_url)
                 ev_file = self.new_saved_file(page.page_type)
                 if ev_file.exists():
@@ -307,18 +272,18 @@ class Role:
 
     def print_urls(self) -> None:
         print("")
-        if self.role_job_board_urls:
+        if self.posting.job_board_urls:
             print(
                 "    Job Board URL(s): "
                 + os.linesep
                 + Style.BRIGHT
                 + os.linesep.join(
-                    [f"    {u}" for u in self.role_job_board_urls]
+                    [f"    {u}" for u in self.posting.job_board_urls]
                 )
                 + Style.RESET_ALL
             )
             print("")
-        print("    " + Style.BRIGHT + self.role_url + Style.RESET_ALL)
+        print("    " + Style.BRIGHT + self.posting.url + Style.RESET_ALL)
         print("")
 
     def print_info(
@@ -331,18 +296,18 @@ class Role:
             + Style.RESET_ALL
             + (f"{prefix} " if prefix else "")
             + Style.BRIGHT
-            + self.role_title
+            + self.posting.title
             + Style.RESET_ALL
             + " at "
             + Style.BRIGHT
-            + self.company
+            + self.posting.company.name
             + Style.RESET_ALL
             + " -> "
             + Style.BRIGHT
             + Fore.BLUE
             + str(self.role_path).removeprefix(str(config.dir) + os.sep)
             + Style.RESET_ALL
-            + ((" " + self.role_url) if compact else "")
+            + ((" " + self.posting.url) if compact else "")
             + (
                 (Style.BRIGHT + Fore.YELLOW + " (applied)" + Style.RESET_ALL)
                 if self.date_applied
@@ -388,11 +353,11 @@ class Role:
 
     @cached_property
     def company_slug(self) -> str:
-        return slugify(self.company)
+        return slugify(self.posting.company.name)
 
     @cached_property
     def title_slug(self) -> str:
-        return slugify(self.role_title)
+        return slugify(self.posting.title)
 
     @cached_property
     def date_str(self) -> str:

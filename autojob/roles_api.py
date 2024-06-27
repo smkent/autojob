@@ -26,7 +26,7 @@ class RoleCounter:
 
 
 @dataclass
-class APIRoles:
+class Roles:
     api: API = field(default_factory=API)
     resume: Path | None = None
     select_companies: set[str] = field(default_factory=set)
@@ -62,7 +62,7 @@ class APIRoles:
                 + ("Switching to" if prev_company else "Starting with")
                 + " company "
                 + Style.BRIGHT
-                + company_roles[0].company
+                + company_roles[0].posting.company.name
                 + Style.RESET_ALL
                 + Style.BRIGHT
                 + Fore.YELLOW
@@ -73,16 +73,20 @@ class APIRoles:
             prompt_press_enter()
             for i, company_role in enumerate(company_roles):
                 yield company_role, i + 1, len(company_roles)
-            prev_company = company_roles[0].company
+            prev_company = company_roles[0].posting.company.name
 
     def companies_role_gen(self) -> Iterator[list[Role]]:
         company_roles: list[Role] = []
         for role in self.role_gen():
-            if role.closed:
+            if role.posting.closed:
                 continue
             if role.role_path_has_activity:
                 continue
-            if not company_roles or company_roles[0].company == role.company:
+            if (
+                not company_roles
+                or company_roles[0].posting.company.name
+                == role.posting.company.name
+            ):
                 company_roles.append(role)
                 continue
             yield company_roles
@@ -95,14 +99,11 @@ class APIRoles:
 
         for posting in self.api.postings_queue():
             yield Role(
+                api=self.api,
+                posting=posting,
                 resume=self.resume,
-                company=posting.company.name,
-                role_title=posting.title,
-                role_url=posting.url,
-                role_job_board_urls=posting.job_board_urls,
-                closed=bool(posting.closed),
                 date_applied=None,
-                sent_to_legal=None,
+                reported=None,
                 role_num=role_counts.next(posting.company.name, None),
                 save_posting=self.save_posting,
             )
