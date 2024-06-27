@@ -15,6 +15,7 @@ from dateutil.parser import parse as parse_date
 from .api import SpreadsheetData
 from .config import ConfigSetup, config
 from .roles import Roles
+from .roles_api import APIRoles
 from .utils import prompt_press_enter
 
 
@@ -22,11 +23,21 @@ class AutoJobApp:
     @cached_property
     def roles(self) -> Roles:
         return Roles(
-            self.args.resume or config.resume,
-            set(self.args.select_companies or {}),
-            set(self.args.skip_companies or {}),
-            self.args.check_duplicate_urls,
-            self.args.save_posting,
+            resume=self.args.resume or config.resume,
+            select_companies=set(self.args.select_companies or {}),
+            skip_companies=set(self.args.skip_companies or {}),
+            check_duplicate_urls=self.args.check_duplicate_urls,
+            save_posting=self.args.save_posting,
+        )
+
+    @cached_property
+    def roles_api(self) -> APIRoles:
+        return APIRoles(
+            resume=self.args.resume or config.resume,
+            select_companies=set(self.args.select_companies or {}),
+            skip_companies=set(self.args.skip_companies or {}),
+            check_duplicate_urls=self.args.check_duplicate_urls,
+            save_posting=self.args.save_posting,
         )
 
     @cached_property
@@ -55,6 +66,7 @@ class AutoJobApp:
             "action",
             choices=[
                 "apply",
+                "applyapi",
                 "check",
                 "zip",
                 "unzip",
@@ -137,6 +149,8 @@ class AutoJobApp:
         self.print_config()
         if self.args.action == "apply":
             self.roles.apply()
+        if self.args.action == "applyapi":
+            self.roles_api.apply()
         elif self.args.action == "check":
             self.check()
         elif self.args.action == "zip":
@@ -165,7 +179,11 @@ class AutoJobApp:
         print(
             "   ", f"{'Resume:': >{align}}", _br(self.roles.resume or "(none)")
         )
-        print("   ", f"{'Spreadsheet:': >{align}}", _br(config.spreadsheet))
+        print(
+            "   ",
+            f"{'Spreadsheet:': >{align}}",
+            _br(config.spreadsheet or "(none)"),
+        )
         print(
             "   ",
             f"{'Spreadsheet tab:': >{align}}",
@@ -226,10 +244,11 @@ class AutoJobApp:
         _print_action("Creating", color=Fore.MAGENTA)
         role_count = 0
         with ZipFile(str(zip_path), mode="w") as z:
-            z.write(
-                config.spreadsheet,
-                self.trailing_path(config.spreadsheet),
-            )
+            if config.spreadsheet:
+                z.write(
+                    config.spreadsheet,
+                    self.trailing_path(config.spreadsheet),
+                )
             for role in self.roles.role_gen(
                 lambda r: bool(r.notna()["Date Applied"]) is True
             ):

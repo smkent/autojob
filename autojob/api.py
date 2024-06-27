@@ -163,6 +163,11 @@ class API:
             data["posting"] = self.get_posting_by_link(data["posting"])
             self.cache_application(Application.from_dict(data))
 
+    def postings_queue(self) -> Iterator[Posting]:
+        for data in self.request_all(f"queue?limit={self.api_limit}"):
+            data["company"] = self.get_company_by_link(data["company"])
+            yield Posting.from_dict(data)
+
     def cache_company(self, company: Company) -> None:
         self.companies_by_link[company.link] = company
         self.companies_by_name[company.name] = company

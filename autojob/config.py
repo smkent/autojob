@@ -87,8 +87,10 @@ class Config:
         return None
 
     @cached_property
-    def spreadsheet(self) -> Path:
-        return self.value_to_file_path("spreadsheet", "spreadsheet.xlsx")
+    def spreadsheet(self) -> Path | None:
+        with suppress(ConfigValueFileMissing):
+            return self.value_to_file_path("spreadsheet", "spreadsheet.xlsx")
+        return None
 
     @cached_property
     def spreadsheet_tab(self) -> str:
