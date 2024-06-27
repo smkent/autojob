@@ -94,10 +94,21 @@ class Roles:
         role_counts = RoleCounter()
 
         for posting in self.api.postings_queue():
-            yield Role(
+            role = Role(
                 api=self.api,
                 posting=posting,
                 resume=self.resume,
                 role_num=role_counts.next(posting.company.name, None),
                 save_posting=self.save_posting,
             )
+            if self.select_companies and not (
+                role.posting.company.name.lower() in self.select_companies
+                or role.company_slug in self.select_companies
+            ):
+                continue
+            if self.skip_companies and (
+                role.posting.company.name.lower() in self.skip_companies
+                or role.company_slug in self.skip_companies
+            ):
+                continue
+            yield role
