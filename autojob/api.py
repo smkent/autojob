@@ -276,6 +276,8 @@ class SpreadsheetData:
         for posting in self.postings_gen():
             try:
                 existing_posting = self.api.get_posting_by_url(posting.url)
+                if existing_posting.closed and posting.closed:
+                    posting.closed = existing_posting.closed
                 if posting == existing_posting:
                     continue
                 posting.link = existing_posting.link
@@ -362,7 +364,7 @@ class SpreadsheetData:
                 ),
                 url=row["Role Posting URL"],
                 job_board_urls=more_urls or [],
-                title=row["Role Title"],
+                title=row["Role Title"].strip(),
                 location=row["Role Location"],
                 wa_jurisdiction=(
                     row["WA jurisdiction if remote"]
