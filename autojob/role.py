@@ -16,7 +16,7 @@ from colorama import Fore, Style  # type: ignore
 from pypdf import PdfReader
 from slugify import slugify
 
-from .api import API, Application, Posting
+from .api import Application, Posting, api_client
 from .chrome_driver import Webdriver, WebdriverPage
 from .config import config
 
@@ -91,7 +91,6 @@ class RoleChecks:
 
 @dataclass
 class Role:
-    api: API
     posting: Posting
     resume: Path | None
     role_num: int = 0
@@ -149,7 +148,7 @@ class Role:
             self.apply_cancel()
             return False
         elif action == ApplyAction.FINISH_ROLE:
-            application = self.api.save_application(
+            application = api_client.save_application(
                 Application(posting=self.posting)
             )
             print(
@@ -220,7 +219,7 @@ class Role:
         print("")
         self.posting.closed = datetime.now()
         self.posting.closed_note = note or ""
-        self.api.save_posting(self.posting)
+        api_client.save_posting(self.posting)
         print(
             "Marked role as closed: "
             + Style.BRIGHT

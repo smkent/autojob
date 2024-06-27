@@ -8,7 +8,7 @@ from pathlib import Path
 
 from colorama import Fore, Style  # type: ignore
 
-from .api import API
+from .api import api_client
 from .role import Role
 from .utils import prompt_press_enter
 
@@ -27,7 +27,6 @@ class RoleCounter:
 
 @dataclass
 class Roles:
-    api: API = field(default_factory=API)
     resume: Path | None = None
     select_companies: set[str] = field(default_factory=set)
     skip_companies: set[str] = field(default_factory=set)
@@ -93,9 +92,8 @@ class Roles:
     def role_gen(self) -> Iterator[Role]:
         role_counts = RoleCounter()
 
-        for posting in self.api.postings_queue():
+        for posting in api_client.postings_queue():
             role = Role(
-                api=self.api,
                 posting=posting,
                 resume=self.resume,
                 role_num=role_counts.next(posting.company.name, None),

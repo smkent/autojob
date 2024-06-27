@@ -17,6 +17,7 @@ from selenium.webdriver.remote.webdriver import By
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.wait import WebDriverWait
 
+from .api import api_client
 from .config import config
 from .utils import prompt_press_enter
 
@@ -236,10 +237,10 @@ class GreenhousePosting(WebdriverPage):
 
     def _prefill_fields(self) -> None:
         for el_name, value in [
-            ("first_name", config.first_name),
-            ("last_name", config.last_name),
-            ("email", config.email),
-            ("phone", config.phone),
+            ("first_name", api_client.me.first_name),
+            ("last_name", api_client.me.last_name),
+            ("email", api_client.me.email),
+            ("phone", api_client.me.phone),
         ]:
             if not value:
                 continue
@@ -315,8 +316,8 @@ class ShopifyPosting(WebdriverPosting):
             except NoSuchElementException:
                 pass
         for el_name, value in [
-            ("_systemfield_name", config.full_name),
-            ("_systemfield_email", config.email),
+            ("_systemfield_name", api_client.me.full_name),
+            ("_systemfield_email", api_client.me.email),
         ]:
             if not value:
                 continue

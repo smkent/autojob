@@ -5,6 +5,7 @@ import os
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from functools import cached_property
 from typing import Any
 from urllib.parse import quote
 
@@ -41,6 +42,21 @@ class Model(dataclasses_json.DataClassJsonMixin):
     dataclass_json_config = dataclasses_json.config(
         undefined=dataclasses_json.Undefined.EXCLUDE, exclude=model_exclude
     )["dataclasses_json"]
+
+
+@dataclass
+class User(Model):
+    pk: int
+    username: str
+    first_name: str = ""
+    last_name: str = ""
+    email: str = ""
+    phone: str = ""
+    linkedin: str = ""
+
+    @property
+    def full_name(self) -> str:
+        return f"{self.first_name} {self.last_name}"
 
 
 @dataclass
@@ -115,8 +131,8 @@ class API:
                 kwargs["data"] = json.dumps(data)
             kwargs["headers"]["Content-Type"] = "application/json"
         kwargs["headers"]["Authorization"] = f"Bearer {config.api_key}"
-        if not url.startswith(config.api):
-            url = config.api + url
+        if not url.startswith(config.api_url):
+            url = config.api_url + url
         response = requests.request(method, url, *args, **kwargs)
         response.raise_for_status()
         return response
@@ -138,6 +154,10 @@ class API:
             else:
                 endpoint = None
             yield from response.json()
+
+    @cached_property
+    def me(self) -> User:
+        return User.from_dict(self.request("me", method="get"))
 
     def load_all(self) -> None:
         self.load_companies()
@@ -246,7 +266,10 @@ class API:
 
 @dataclass
 class SpreadsheetData:
-    api: API = field(default_factory=API)
+    api: API = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.api = api_client
 
     def migrate_to_api(self) -> None:
         self.api.load_all()
@@ -397,3 +420,6 @@ class SpreadsheetData:
                 bona_fide=int(pdrow(row, "Bona fide rtg.", 0)) or None,
                 notes=pdrow(row, "Personal notes", ""),
             )
+
+
+api_client = API()

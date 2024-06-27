@@ -9,7 +9,7 @@ from pathlib import Path
 from colorama import Fore, Style  # type: ignore
 from dateutil.parser import parse as parse_date
 
-from .api import SpreadsheetData
+from .api import SpreadsheetData, api_client
 from .config import ConfigSetup, config
 from .roles import Roles
 
@@ -152,13 +152,8 @@ class AutoJobApp:
         )
         print(
             "   ",
-            f"{'Spreadsheet:': >{align}}",
-            _br(config.spreadsheet or "(none)"),
-        )
-        print(
-            "   ",
-            f"{'Spreadsheet tab:': >{align}}",
-            _br(config.spreadsheet_tab),
+            f"{'API User:': >{align}}",
+            _br(api_client.me.username),
         )
         print(
             "   ",
