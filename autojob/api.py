@@ -88,11 +88,7 @@ class Posting(Model):
 @dataclass
 class Application(Model):
     posting: Posting
-    applied: datetime = field(
-        metadata=dataclasses_json.config(
-            encoder=datetime.isoformat, decoder=datetime.fromisoformat
-        )
-    )
+    applied: datetime | None = None
     reported: datetime | None = None
     bona_fide: int | None = None
     notes: str = ""

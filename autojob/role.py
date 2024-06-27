@@ -92,8 +92,6 @@ class Role:
     api: API
     posting: Posting
     resume: Path | None
-    date_applied: datetime | None = None
-    reported: datetime | None = None
     role_num: int = 0
     save_posting: bool = False
     saved_file_counts: dict[str, int] = field(
@@ -308,11 +306,6 @@ class Role:
             + str(self.role_path).removeprefix(str(config.dir) + os.sep)
             + Style.RESET_ALL
             + ((" " + self.posting.url) if compact else "")
-            + (
-                (Style.BRIGHT + Fore.YELLOW + " (applied)" + Style.RESET_ALL)
-                if self.date_applied
-                else ""
-            )
         )
         if not compact:
             self.print_urls()
@@ -361,7 +354,7 @@ class Role:
 
     @cached_property
     def date_str(self) -> str:
-        return (self.date_applied or datetime.now()).strftime("%Y%m%d")
+        return datetime.now().strftime("%Y%m%d")
 
     @cached_property
     def role_dir_name(self) -> str:

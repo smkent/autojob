@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 import os
-import sys
-import tempfile
 from argparse import ArgumentParser, Namespace
 from datetime import date, datetime, timedelta
 from functools import cached_property
 from pathlib import Path
-from zipfile import ZipFile
 
 from colorama import Fore, Style  # type: ignore
 from dateutil.parser import parse as parse_date
@@ -15,7 +12,6 @@ from dateutil.parser import parse as parse_date
 from .api import SpreadsheetData
 from .config import ConfigSetup, config
 from .roles_api import Roles
-from .utils import prompt_press_enter
 
 
 class AutoJobApp:
@@ -53,14 +49,7 @@ class AutoJobApp:
         ap = ArgumentParser(description="Job application tools")
         ap.add_argument(
             "action",
-            choices=[
-                "apply",
-                "check",
-                "zip",
-                "unzip",
-                "config",
-                "data2api",
-            ],
+            choices=["apply", "check", "config", "data2api"],
             help="Action to perform",
         )
         ap.add_argument(
@@ -139,10 +128,6 @@ class AutoJobApp:
             self.roles.apply()
         elif self.args.action == "check":
             self.check()
-        elif self.args.action == "zip":
-            self.zip()
-        elif self.args.action == "unzip":
-            self.unzip()
         elif self.args.action == "data2api":
             self.migrate_data_to_api()
         else:
@@ -177,11 +162,6 @@ class AutoJobApp:
         )
         print(
             "   ",
-            f"{'Zip file prefix:': >{align}}",
-            _br(config.zip_prefix),
-        )
-        print(
-            "   ",
             f"{'Check words:': >{align}}",
             _br(", ".join(sorted(config.compensation_words))),
         )
@@ -208,65 +188,6 @@ class AutoJobApp:
                         ]
                     ),
                 )
-
-    def zip(self) -> None:
-        def _print_action(action: str, color: str = Fore.GREEN) -> None:
-            print(
-                Style.BRIGHT
-                + color
-                + ">>> "
-                + Style.RESET_ALL
-                + action
-                + " "
-                + Style.BRIGHT
-                + self.trailing_path(zip_path)
-                + Style.RESET_ALL
-            )
-
-        zip_path = config.dir / f"{config.zip_prefix}-{self.date_str}.zip"
-        if zip_path.exists():
-            _print_action("Error: Zip file already exists:", color=Fore.RED)
-            sys.exit(1)
-        _print_action("Creating", color=Fore.MAGENTA)
-        role_count = 0
-        with ZipFile(str(zip_path), mode="w") as z:
-            if config.spreadsheet:
-                z.write(
-                    config.spreadsheet,
-                    self.trailing_path(config.spreadsheet),
-                )
-            for role in self.roles.role_gen():
-                if role.reported:
-                    continue
-                if (
-                    self.args.since_date
-                    and role.date_applied < self.args.since_date
-                ):
-                    continue
-                role_count += 1
-                role.print_info(compact=True)
-                for path in role.role_path.glob("**/*"):
-                    z.write(str(path), self.trailing_path(path))
-        _print_action(
-            "Saved "
-            + Style.BRIGHT
-            + str(role_count)
-            + Style.RESET_ALL
-            + " cases to"
-        )
-
-    def unzip(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="autojob-unzip.") as td:
-            print("Unzipping files to " + Style.BRIGHT + td + Style.RESET_ALL)
-            print("")
-            for zip_file in sorted([i for i in config.dir.glob("*.zip")]):
-                print("Unzipping", zip_file)
-                with ZipFile(zip_file) as z:
-                    z.extractall(td)
-            print("")
-            print("Unzipped files to " + Style.BRIGHT + td + Style.RESET_ALL)
-            print("")
-            prompt_press_enter()
 
     def trailing_path(self, path: Path) -> str:
         return str(path).removeprefix(str(config.dir) + os.sep)

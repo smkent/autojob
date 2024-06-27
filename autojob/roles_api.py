@@ -34,10 +34,6 @@ class Roles:
     check_duplicate_urls: bool = False
     save_posting: bool = True
 
-    def __post_init__(self) -> None:
-        # self.api.load_all()
-        pass
-
     def apply(self) -> None:
         for role, i, total in self.company_role_gen():
             role.print_info(
@@ -102,8 +98,6 @@ class Roles:
                 api=self.api,
                 posting=posting,
                 resume=self.resume,
-                date_applied=None,
-                reported=None,
                 role_num=role_counts.next(posting.company.name, None),
                 save_posting=self.save_posting,
             )
