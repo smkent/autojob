@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 
 from colorama import Fore, Style  # type: ignore
@@ -11,18 +9,6 @@ from colorama import Fore, Style  # type: ignore
 from .api import api_client
 from .role import Role
 from .utils import prompt_press_enter
-
-
-class RoleCounter:
-    def __init__(self) -> None:
-        self.counts: dict[str, dict[str, int]] = defaultdict(
-            lambda: defaultdict(int)
-        )
-
-    def next(self, company: str, date: datetime | None = None) -> int:
-        date_str = (date or datetime.now()).strftime("%Y%m%d")
-        self.counts[date_str][company] += 1
-        return self.counts[date_str][company]
 
 
 @dataclass
@@ -90,13 +76,10 @@ class Roles:
             yield company_roles
 
     def role_gen(self) -> Iterator[Role]:
-        role_counts = RoleCounter()
-
         for posting in api_client.postings_queue():
             role = Role(
                 posting=posting,
                 resume=self.resume,
-                role_num=role_counts.next(posting.company.name, None),
                 save_posting=self.save_posting,
             )
             if self.select_companies and not (

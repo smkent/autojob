@@ -93,7 +93,6 @@ class RoleChecks:
 class Role:
     posting: Posting
     resume: Path | None
-    role_num: int = 0
     save_posting: bool = False
     saved_file_counts: dict[str, int] = field(
         default_factory=lambda: defaultdict(int)
@@ -387,7 +386,7 @@ class Role:
 
     @cached_property
     def role_dir_name(self) -> str:
-        return f"{self.date_str}-{self.role_num}-{self.title_slug}"
+        return f"{self.posting.pk}-{self.date_str}-{self.title_slug}"
 
     @cached_property
     def role_path(self) -> Path:
