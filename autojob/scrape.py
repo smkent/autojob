@@ -68,7 +68,7 @@ class Scrape:
             metavar="company",
             action="append",
             help=(
-                "Name of company in spreadsheet to include."
+                "Name of company to include."
                 " Can be specified multiple times."
                 " (default: all companies included)"
             ),

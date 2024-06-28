@@ -86,21 +86,6 @@ class Config:
         return None
 
     @cached_property
-    def spreadsheet(self) -> Path | None:
-        with suppress(ConfigValueFileMissing):
-            return self.value_to_file_path("spreadsheet", "spreadsheet.xlsx")
-        return None
-
-    @cached_property
-    def spreadsheet_tab(self) -> str:
-        if not self.raw or not (tab := self.raw.get("spreadsheet_tab")):
-            raise Exception(
-                'Configuration option "spreadsheet_tab" has no value'
-            )
-        assert isinstance(tab, str)
-        return tab
-
-    @cached_property
     def compensation_words(self) -> Sequence[str]:
         if not self.raw or not (value := self.raw.get("words")):
             return COMPENSATION_WORDS
@@ -117,11 +102,6 @@ class ConfigSetup:
         new_conf: dict[str, str] = {}
         for key in self.config_keys:
             existing_value = config.raw.get(key) or ""
-            # One-off preprocessing
-            if key == "spreadsheet_tab" and not existing_value:
-                existing_value = (
-                    config.raw.get("name") or new_conf.get("name") or ""
-                ).rsplit(" ", -1)[0]
             existing_str = (
                 (" [" + Style.BRIGHT + existing_value + Style.RESET_ALL + "]")
                 if existing_value
