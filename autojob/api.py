@@ -122,6 +122,9 @@ class API:
 
     api_limit: int = field(init=False, default=1000)
 
+    def __post_init__(self) -> None:
+        self.load_companies()
+
     def request_raw(
         self, url: str, method: str = "get", *args: Any, **kwargs: Any
     ) -> Any:
@@ -191,13 +194,17 @@ class API:
         if company := self.companies_by_link.get(link):
             return company
         data = self.request(link)
-        return Company.from_dict(data)
+        company = Company.from_dict(data)
+        self.cache_company(company)
+        return company
 
     def get_company_by_name(self, name: str) -> Company:
         if company := self.companies_by_name.get(name):
             return company
         data = self.request(f"companies/by_name/{name}")
-        return Company.from_dict(data)
+        company = Company.from_dict(data)
+        self.cache_company(company)
+        return company
 
     def save_company(self, company: Company) -> Company:
         url = company.link if company.link else "companies"
@@ -214,14 +221,18 @@ class API:
             return posting
         data = self.request(link)
         data["company"] = self.get_company_by_link(data["company"])
-        return Posting.from_dict(data)
+        posting = Posting.from_dict(data)
+        self.cache_posting(posting)
+        return posting
 
     def get_posting_by_url(self, url: str) -> Posting:
         if posting := self.postings_by_url.get(url):
             return posting
         data = self.request(f"postings/by_url/{quote(url)}")
         data["company"] = self.get_company_by_link(data["company"])
-        return Posting.from_dict(data)
+        posting = Posting.from_dict(data)
+        self.cache_posting(posting)
+        return posting
 
     def save_posting(self, posting: Posting) -> Posting:
         url = posting.link if posting.link else "postings"
@@ -245,7 +256,9 @@ class API:
             return application
         data = self.request(f"applications/by_url/{quote(url)}")
         data["posting"] = self.get_posting_by_link(data["posting"])
-        return Application.from_dict(data)
+        application = Application.from_dict(data)
+        self.cache_application(application)
+        return application
 
     def save_application(self, application: Application) -> Application:
         url = application.link if application.link else "applications"
