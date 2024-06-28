@@ -8,7 +8,6 @@ from typing import Any, Sequence
 
 import yaml
 from colorama import Style  # type: ignore
-from slugify import slugify
 
 HOME = Path.home()
 CONF_FILE = HOME / ".autojob.yaml"
@@ -65,7 +64,7 @@ class Config:
         return path
 
     @cached_property
-    def api(self) -> str:
+    def api_url(self) -> str:
         if not self.raw:
             return ""
         return self.raw.get("api") or ""
@@ -87,8 +86,10 @@ class Config:
         return None
 
     @cached_property
-    def spreadsheet(self) -> Path:
-        return self.value_to_file_path("spreadsheet", "spreadsheet.xlsx")
+    def spreadsheet(self) -> Path | None:
+        with suppress(ConfigValueFileMissing):
+            return self.value_to_file_path("spreadsheet", "spreadsheet.xlsx")
+        return None
 
     @cached_property
     def spreadsheet_tab(self) -> str:
@@ -98,39 +99,6 @@ class Config:
             )
         assert isinstance(tab, str)
         return tab
-
-    @cached_property
-    def full_name(self) -> str:
-        if not self.raw:
-            return ""
-        return self.raw.get("name") or ""
-
-    @cached_property
-    def first_name(self) -> str:
-        return self.full_name.rsplit(" ", 1)[0]
-
-    @cached_property
-    def last_name(self) -> str:
-        return self.full_name.rsplit(" ", 1)[-1]
-
-    @cached_property
-    def email(self) -> str:
-        if not self.raw:
-            return ""
-        return self.raw.get("email") or ""
-
-    @cached_property
-    def phone(self) -> str:
-        if not self.raw:
-            return ""
-        return self.raw.get("phone") or ""
-
-    @cached_property
-    def zip_prefix(self) -> str:
-        prefix = ""
-        if self.raw and (name := self.raw.get("name")):
-            prefix = slugify(name) + "-"
-        return f"{prefix}jobs"
 
     @cached_property
     def compensation_words(self) -> Sequence[str]:
@@ -143,15 +111,7 @@ config = Config()
 
 
 class ConfigSetup:
-    config_keys = [
-        "name",
-        "email",
-        "phone",
-        "dir",
-        "resume",
-        "spreadsheet",
-        "spreadsheet_tab",
-    ]
+    config_keys = ["dir", "resume", "api", "api_key"]
 
     def __call__(self) -> None:
         new_conf: dict[str, str] = {}

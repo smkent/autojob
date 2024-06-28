@@ -5,6 +5,7 @@ import os
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from functools import cached_property
 from typing import Any
 from urllib.parse import quote
 
@@ -15,7 +16,6 @@ from pandas import Series  # type: ignore
 from pandas import Timestamp, read_excel
 
 from .config import config
-from .roles import Roles
 
 dataclasses_json.cfg.global_config.encoders[datetime] = datetime.isoformat
 dataclasses_json.cfg.global_config.decoders[datetime] = datetime.fromisoformat
@@ -42,6 +42,21 @@ class Model(dataclasses_json.DataClassJsonMixin):
     dataclass_json_config = dataclasses_json.config(
         undefined=dataclasses_json.Undefined.EXCLUDE, exclude=model_exclude
     )["dataclasses_json"]
+
+
+@dataclass
+class User(Model):
+    pk: int
+    username: str
+    first_name: str = ""
+    last_name: str = ""
+    email: str = ""
+    phone: str = ""
+    linkedin: str = ""
+
+    @property
+    def full_name(self) -> str:
+        return f"{self.first_name} {self.last_name}"
 
 
 @dataclass
@@ -89,11 +104,7 @@ class Posting(Model):
 @dataclass
 class Application(Model):
     posting: Posting
-    applied: datetime = field(
-        metadata=dataclasses_json.config(
-            encoder=datetime.isoformat, decoder=datetime.fromisoformat
-        )
-    )
+    applied: datetime | None = None
     reported: datetime | None = None
     bona_fide: int | None = None
     notes: str = ""
@@ -120,8 +131,8 @@ class API:
                 kwargs["data"] = json.dumps(data)
             kwargs["headers"]["Content-Type"] = "application/json"
         kwargs["headers"]["Authorization"] = f"Bearer {config.api_key}"
-        if not url.startswith(config.api):
-            url = config.api + url
+        if not url.startswith(config.api_url):
+            url = config.api_url + url
         response = requests.request(method, url, *args, **kwargs)
         response.raise_for_status()
         return response
@@ -144,6 +155,10 @@ class API:
                 endpoint = None
             yield from response.json()
 
+    @cached_property
+    def me(self) -> User:
+        return User.from_dict(self.request("me", method="get"))
+
     def load_all(self) -> None:
         self.load_companies()
         self.load_postings()
@@ -162,6 +177,11 @@ class API:
         for data in self.request_all(f"applications?limit={self.api_limit}"):
             data["posting"] = self.get_posting_by_link(data["posting"])
             self.cache_application(Application.from_dict(data))
+
+    def postings_queue(self) -> Iterator[Posting]:
+        for data in self.request_all(f"queue?limit={self.api_limit}"):
+            data["company"] = self.get_company_by_link(data["company"])
+            yield Posting.from_dict(data)
 
     def cache_company(self, company: Company) -> None:
         self.companies_by_link[company.link] = company
@@ -246,8 +266,10 @@ class API:
 
 @dataclass
 class SpreadsheetData:
-    roles: Roles
-    api: API = field(default_factory=API)
+    api: API = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.api = api_client
 
     def migrate_to_api(self) -> None:
         self.api.load_all()
@@ -398,3 +420,6 @@ class SpreadsheetData:
                 bona_fide=int(pdrow(row, "Bona fide rtg.", 0)) or None,
                 notes=pdrow(row, "Personal notes", ""),
             )
+
+
+api_client = API()
