@@ -16,7 +16,6 @@ class Roles:
     resume: Path | None = None
     select_companies: set[str] = field(default_factory=set)
     skip_companies: set[str] = field(default_factory=set)
-    check_duplicate_urls: bool = False
     save_posting: bool = True
 
     def apply(self) -> None:

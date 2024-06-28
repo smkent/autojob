@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import json
-import os
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from functools import cached_property
 from typing import Any
 from urllib.parse import quote
@@ -12,24 +11,11 @@ from urllib.parse import quote
 import dataclasses_json
 import requests
 from dataclasses_json.core import Json
-from pandas import Series  # type: ignore
-from pandas import Timestamp, read_excel
 
 from .config import config
 
 dataclasses_json.cfg.global_config.encoders[datetime] = datetime.isoformat
 dataclasses_json.cfg.global_config.decoders[datetime] = datetime.fromisoformat
-
-
-def pdrow(row: Series, key: str, default: Any = None) -> Any:
-    value = row[key] if row.notna()[key] else default
-    if isinstance(value, Timestamp):
-        value = value.to_pydatetime()
-    if isinstance(value, datetime):
-        value = value.replace(microsecond=0)
-        if not value.tzinfo:
-            value = value.replace(tzinfo=timezone.utc)
-    return value
 
 
 def model_exclude(value: Any) -> bool:
@@ -275,164 +261,6 @@ class API:
 
     def cache_application(self, application: Application) -> None:
         self.applications_by_url[application.posting.url] = application
-
-
-@dataclass
-class SpreadsheetData:
-    api: API = field(init=False)
-
-    def __post_init__(self) -> None:
-        self.api = api_client
-
-    def migrate_to_api(self) -> None:
-        self.api.load_all()
-        self.migrate_companies_to_api()
-        self.migrate_postings_to_api()
-        self.migrate_applications_to_api()
-
-    def migrate_companies_to_api(self) -> None:
-        for company in self.companies_gen():
-            try:
-                existing_company = self.api.get_company_by_name(company.name)
-                if company == existing_company:
-                    continue
-                company.link = existing_company.link
-                print(f"Company {company.name} differs")
-            except requests.exceptions.HTTPError as e:
-                if e.response.status_code != 404:
-                    raise
-                print(f"Adding company {company.name}")
-            try:
-                self.api.save_company(company)
-            except Exception as e:
-                print(f"Error saving company {company}: {e}")
-
-    def migrate_postings_to_api(self) -> None:
-        for posting in self.postings_gen():
-            try:
-                existing_posting = self.api.get_posting_by_url(posting.url)
-                if existing_posting.closed and posting.closed:
-                    posting.closed = existing_posting.closed
-                if posting == existing_posting:
-                    continue
-                posting.link = existing_posting.link
-                print(f"Posting {posting.url} differs")
-            except requests.exceptions.HTTPError as e:
-                if e.response.status_code != 404:
-                    raise
-                print(f"Adding posting {posting.company.name} / {posting.url}")
-            try:
-                self.api.save_posting(posting)
-            except Exception as e:
-                print(f"Error adding posting {posting}: {e}")
-
-    def migrate_applications_to_api(self) -> None:
-        for application in self.applications_gen():
-            try:
-                existing_application = self.api.get_application_by_url(
-                    application.posting.url
-                )
-                if application == existing_application:
-                    continue
-                application.link = existing_application.link
-                print(
-                    f"Application for {application.posting.company.name}"
-                    f" / {application.posting.url} differs"
-                )
-            except requests.exceptions.HTTPError as e:
-                if e.response.status_code != 404:
-                    raise
-                print(
-                    "Adding application for"
-                    f" {application.posting.company.name}"
-                    f" / {application.posting.url}"
-                )
-            try:
-                self.api.save_application(application)
-            except Exception as e:
-                print(f"Error adding application {application}: {e}")
-
-    def companies_gen(self) -> Iterator[Company]:
-        df = read_excel(
-            config.spreadsheet,
-            "Companies",
-        )
-        for row_idx in range(0, len(df)):
-            row = df.iloc[row_idx]
-            carray = row["Careers Pages"].strip().split(", ")
-            careers_url = carray.pop(0)
-            if cmore := pdrow(row, "Additional Careers URLs", ""):
-                carray += cmore.split(", ")
-            yield Company(
-                name=str(row["Company"]).strip(),
-                hq=row["HQ location"],
-                url=row["URL"],
-                careers_url=careers_url,
-                careers_urls=carray,
-                employees_est=str(row["# Employees"]),
-                employees_est_source=row["# Employees Source"],
-                how_found=row["How Found"],
-                notes=row["Notes"] if row.notna()["Notes"] else "",
-            )
-
-    def postings_gen(self) -> Iterator[Posting]:
-        df = read_excel(
-            config.spreadsheet,
-            "Postings",
-            skiprows=lambda x: x in [1],
-        )
-        for row_idx in range(0, len(df)):
-            row = df.iloc[row_idx]
-            closed_note = row["Closed"] if row.notna()["Closed"] else ""
-            closed = (
-                datetime.now().replace(microsecond=0) if closed_note else None
-            )
-            if closed_note in {"x", "z"}:
-                closed_note = ""
-            if more_urls := pdrow(row, "Job Board URL", ""):
-                more_urls = [
-                    u.strip() for u in more_urls.strip().split(os.linesep)
-                ]
-            yield Posting(
-                company=self.api.get_company_by_name(
-                    str(row["Company"]).strip()
-                ),
-                url=row["Role Posting URL"],
-                job_board_urls=more_urls or [],
-                title=row["Role Title"].strip(),
-                location=row["Role Location"],
-                wa_jurisdiction=(
-                    row["WA jurisdiction if remote"]
-                    if row.notna()["WA jurisdiction if remote"]
-                    else ""
-                ),
-                notes=(
-                    row["Notes/evidence"]
-                    if row.notna()["Notes/evidence"]
-                    else ""
-                ),
-                closed=closed,
-                closed_note=closed_note,
-            )
-
-    def applications_gen(self) -> Iterator[Application]:
-        df = read_excel(
-            config.spreadsheet,
-            config.spreadsheet_tab,
-            skiprows=lambda x: x in [1],
-        )
-        for row_idx in range(0, len(df)):
-            row = df.iloc[row_idx]
-            applied = pdrow(row, "Date Applied")
-            if not applied:
-                continue
-            yield Application(
-                posting=self.api.get_posting_by_url(row["Role Posting URL"]),
-                applied=applied,
-                reported=pdrow(row, "Sent to Legal"),
-                bona_fide=int(pdrow(row, "Bona fide rtg.", 0)) or None,
-                notes=pdrow(row, "Personal notes", ""),
-            )
 
 
 api_client = API()

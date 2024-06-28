@@ -9,7 +9,7 @@ from pathlib import Path
 from colorama import Fore, Style  # type: ignore
 from dateutil.parser import parse as parse_date
 
-from .api import SpreadsheetData, api_client
+from .api import api_client
 from .config import ConfigSetup, config
 from .roles import Roles
 
@@ -21,7 +21,6 @@ class AutoJobApp:
             resume=self.args.resume or config.resume,
             select_companies=set(self.args.select_companies or {}),
             skip_companies=set(self.args.skip_companies or {}),
-            check_duplicate_urls=self.args.check_duplicate_urls,
             save_posting=self.args.save_posting,
         )
 
@@ -49,15 +48,8 @@ class AutoJobApp:
         ap = ArgumentParser(description="Job application tools")
         ap.add_argument(
             "action",
-            choices=["apply", "check", "config", "data2api"],
+            choices=["apply", "check", "config"],
             help="Action to perform",
-        )
-        ap.add_argument(
-            "-1",
-            "--no-check-duplicate-urls",
-            dest="check_duplicate_urls",
-            action="store_false",
-            help="Don't check for duplicate role URLs in spreadsheet tab",
         )
         ap.add_argument(
             "-n",
@@ -91,7 +83,7 @@ class AutoJobApp:
             action="append",
             type=lambda x: str(x).lower(),
             help=(
-                "Name of company in spreadsheet to include."
+                "Name of company to include."
                 " Can be specified multiple times."
                 " (default: all companies included)"
             ),
@@ -104,7 +96,7 @@ class AutoJobApp:
             action="append",
             type=lambda x: str(x).lower(),
             help=(
-                "Name of company in spreadsheet to skip."
+                "Name of company to skip."
                 " Can be specified multiple times."
                 " (default: no companies skipped)"
             ),
@@ -128,8 +120,6 @@ class AutoJobApp:
             self.roles.apply()
         elif self.args.action == "check":
             self.check()
-        elif self.args.action == "data2api":
-            self.migrate_data_to_api()
         else:
             print(f"Unknown action {self.args.action}")
 
@@ -161,10 +151,6 @@ class AutoJobApp:
             _br(", ".join(sorted(config.compensation_words))),
         )
         print("")
-
-    def migrate_data_to_api(self) -> None:
-        sd = SpreadsheetData()
-        sd.migrate_to_api()
 
     def check(self) -> None:
         for role in self.roles.role_gen():
