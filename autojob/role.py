@@ -127,6 +127,18 @@ class Role:
         print("Exiting")
         sys.exit(0)
 
+    def save_application(self) -> None:
+        application = api_client.save_application(
+            Application(posting=self.posting)
+        )
+        print(
+            "Saved application: "
+            + Style.BRIGHT
+            + application.link
+            + Style.RESET_ALL
+        )
+        print("")
+
     def perform_apply_action(
         self, webdriver: Webdriver, action: ApplyAction
     ) -> bool:
@@ -136,6 +148,7 @@ class Role:
             webdriver.save_pdf(self.new_saved_file("application-submitted"))
         elif action == ApplyAction.APPLICATION_SUBMITTED:
             webdriver.save_pdf(self.new_saved_file("application-submitted"))
+            self.save_application()
             return False
         elif action == ApplyAction.POSTING:
             webdriver.save_pdf(self.posting_pdf_path)
@@ -147,16 +160,7 @@ class Role:
             self.apply_cancel()
             return False
         elif action == ApplyAction.FINISH_ROLE:
-            application = api_client.save_application(
-                Application(posting=self.posting)
-            )
-            print(
-                "Saved application: "
-                + Style.BRIGHT
-                + application.link
-                + Style.RESET_ALL
-            )
-            print("")
+            self.save_application()
             return False
         elif action == ApplyAction.QUIT:
             self.apply_quit()
