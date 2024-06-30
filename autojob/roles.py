@@ -65,6 +65,16 @@ class Roles:
                 continue
             if role.role_path_has_activity:
                 continue
+            if role.similar_role_paths:
+                role.print_info(compact=True)
+                print(
+                    "    Found existing directory match(es)"
+                    f" for posting {role.posting.link}"
+                )
+                for srp in role.similar_role_paths:
+                    print(f"        {srp.name}")
+                print("")
+                continue
             if (
                 not company_roles
                 or company_roles[0].posting.company.name

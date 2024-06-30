@@ -291,6 +291,16 @@ class Role:
         return bool(self.role_files)
 
     @cached_property
+    def similar_role_paths(self) -> Sequence[Path]:
+        assert isinstance(self.posting, Posting)
+        return [
+            fn
+            for fn in (config.dir / self.company_slug).glob(
+                f"{self.posting.pk}-*"
+            )
+        ]
+
+    @cached_property
     def checks(self) -> RoleChecks:
         rc = RoleChecks()
         for f in sorted(self.role_files):
