@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Callable, ClassVar, Iterator, Literal, Sequence
 
 import selenium.webdriver.support.expected_conditions as ec
+import undetected_chromedriver as uc  # type: ignore
 from colorama import Fore, Style  # type: ignore
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
@@ -19,13 +20,11 @@ from selenium.webdriver.support.wait import WebDriverWait
 
 from .api import api_client
 from .config import config
-from .utils import prompt_press_enter
 
 
 @dataclass
 class Webdriver:
     drivers: list[webdriver.Chrome] = field(default_factory=list)
-    existing_chrome_first_run: bool = field(init=False, default=True)
 
     @contextmanager
     def __call__(self, incognito: bool = False) -> Iterator[Webdriver]:
@@ -128,35 +127,24 @@ class Webdriver:
     @contextmanager
     def _chrome_driver_incognito(self) -> Iterator[webdriver.Chrome]:
         options = webdriver.ChromeOptions()
-        driver = webdriver.Chrome(options=options)
+        for option in [
+            "--incognito",
+            "--disable-extensions",
+            "--disable-application-cache",
+            "--disable-gpu",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+        ]:
+            options.add_argument(option)
+        driver = uc.Chrome(options=options)
         yield driver
         driver.quit()
 
     @contextmanager
     def _chrome_driver_existing_session(self) -> Iterator[webdriver.Chrome]:
-        if self.existing_chrome_first_run:
-            print("")
-            print(
-                Fore.CYAN
-                + Style.BRIGHT
-                + "Action required: "
-                + Style.RESET_ALL
-                + "Ensure Chrome is running with the following options:"
-                + os.linesep * 2
-                + Style.BRIGHT
-                + (
-                    "google-chrome"
-                    " -remote-debugging-port=9014"
-                    " --profile-directory=Default"
-                )
-                + Style.RESET_ALL
-            )
-            print("")
-            prompt_press_enter()
-            self.existing_chrome_first_run = False
         options = webdriver.ChromeOptions()
-        options.add_experimental_option("debuggerAddress", "localhost:9014")
-        driver = webdriver.Chrome(options=options)
+        options.add_argument("--profile-directory=Default")
+        driver = uc.Chrome(options=options, user_data_dir=" ")
         yield driver
         driver.quit()
 
