@@ -287,6 +287,8 @@ class Role:
                 continue
             if fp.name.startswith("posting-"):
                 continue
+            if fp.name.startswith(".nfs"):
+                continue
             files.append(fp)
         return files
 
@@ -302,6 +304,7 @@ class Role:
             for fn in (config.dir / self.company_slug).glob(
                 f"{self.posting.pk}-*"
             )
+            if fn != self.role_path
         ]
 
     @cached_property
