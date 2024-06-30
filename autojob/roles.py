@@ -18,6 +18,9 @@ class Roles:
     skip_companies: set[str] = field(default_factory=set)
     save_posting: bool = True
 
+    def __post_init__(self) -> None:
+        api_client.load_companies()
+
     def apply(self) -> None:
         for role, i, total in self.company_role_gen():
             role.print_info(
