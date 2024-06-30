@@ -246,6 +246,10 @@ class Role:
                 return
             shutil.rmtree(self.role_path)
             print(f"Deleted {self.role_path}")
+            company_dir = config.dir / self.company_slug
+            if len([f for f in company_dir.rglob("*")]) == 0:
+                company_dir.rmdir()
+                print(f"Deleted empty {company_dir}")
             print("")
 
     def new_saved_file(self, page_type: str, extension: str = "pdf") -> Path:
