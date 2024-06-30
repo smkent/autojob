@@ -108,9 +108,6 @@ class API:
 
     api_limit: int = field(init=False, default=1000)
 
-    def __post_init__(self) -> None:
-        self.load_companies()
-
     def request_raw(
         self, url: str, method: str = "get", *args: Any, **kwargs: Any
     ) -> Any:
