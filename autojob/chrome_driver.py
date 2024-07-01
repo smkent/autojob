@@ -240,11 +240,12 @@ class AshbyPosting(WebdriverPage):
 
     def prepare_application_form(self) -> bool:
         self.webdriver.navigate(self.url.removesuffix("/") + "/application")
-        page_h1 = self.webdriver.el_wait(
-            "//h1[contains(@class, 'ashby-job-posting-heading')]"
-        )
-        self._prefill_fields()
-        page_h1.click()
+        with suppress(TimeoutException):
+            page_h1 = self.webdriver.el_wait(
+                "//h1[contains(@class, 'ashby-job-posting-heading')]"
+            )
+            self._prefill_fields()
+            page_h1.click()
         return False
 
     def _prefill_fields(self) -> None:
