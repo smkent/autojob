@@ -245,6 +245,7 @@ class AshbyPosting(WebdriverPage):
                 "//h1[contains(@class, 'ashby-job-posting-heading')]"
             )
             self._prefill_fields()
+            self.webdriver.scroll(page_h1)
             page_h1.click()
         return False
 
