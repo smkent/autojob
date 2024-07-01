@@ -31,7 +31,7 @@ class Webdriver:
         method = (
             self._chrome_driver_incognito
             if incognito
-            else self._chrome_driver_existing_session
+            else self._chrome_driver_default_profile
         )
         url = None
         if self.drivers:
@@ -141,7 +141,7 @@ class Webdriver:
         driver.quit()
 
     @contextmanager
-    def _chrome_driver_existing_session(self) -> Iterator[webdriver.Chrome]:
+    def _chrome_driver_default_profile(self) -> Iterator[webdriver.Chrome]:
         options = webdriver.ChromeOptions()
         options.add_argument("--profile-directory=Default")
         driver = uc.Chrome(options=options, user_data_dir=" ")
