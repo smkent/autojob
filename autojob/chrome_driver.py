@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import base64
+import json
 import os
 import re
 import time
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
-from functools import cached_property
+from functools import cached_property, partial
 from pathlib import Path
 from typing import Any, Callable, ClassVar, Iterator, Literal, Sequence
+from unittest import mock
 
 import selenium.webdriver.support.expected_conditions as ec
 import undetected_chromedriver as uc  # type: ignore
@@ -131,7 +133,7 @@ class Webdriver:
 
     @contextmanager
     def _chrome_driver_incognito(self) -> Iterator[webdriver.Chrome]:
-        options = webdriver.ChromeOptions()
+        options = uc.ChromeOptions()
         for option in [
             "--incognito",
             "--disable-extensions",
@@ -160,13 +162,18 @@ class Webdriver:
             prompt_press_enter()
             self.default_chrome_first_run = False
 
-        options = webdriver.ChromeOptions()
+        options = uc.ChromeOptions()
         options.add_argument(f"--profile-directory={CHROME_PROFILE}")
-        driver = uc.Chrome(
-            options=options, user_data_dir=self._chrome_user_data_dir
-        )
-        yield driver
-        driver.quit()
+        with mock.patch.object(
+            json, "dump", wraps=partial(json.dump, ensure_ascii=False)
+        ):
+            driver = uc.Chrome(
+                options=options,
+                user_data_dir=self._chrome_user_data_dir,
+                use_subprocess=True,
+            )
+            yield driver
+            driver.quit()
 
     @cached_property
     def _chrome_user_data_dir(self) -> str:
