@@ -21,6 +21,10 @@ from .chrome_driver import Webdriver, WebdriverPage
 from .config import config
 
 
+class InvalidSavedFile(ValueError):
+    pass
+
+
 class ApplyAction(StrEnum):
     desc: str
 
@@ -31,9 +35,14 @@ class ApplyAction(StrEnum):
         return member
 
     @staticmethod
-    def all(include_incognito: bool = False) -> Sequence[ApplyAction]:
-        actions = [
-            ApplyAction.APPLICATION_PAGE,
+    def all(
+        include_incognito: bool = False,
+        include_resave_application: bool = False,
+    ) -> Sequence[ApplyAction]:
+        actions = [ApplyAction.APPLICATION_PAGE]
+        if include_resave_application:
+            actions.append(ApplyAction.RESAVE_APPLICATION_PAGE)
+        actions += [
             ApplyAction.APPLICATION_SUBMITTED_ONLY,
             ApplyAction.APPLICATION_SUBMITTED,
             ApplyAction.POSTING,
@@ -49,6 +58,7 @@ class ApplyAction(StrEnum):
         return actions
 
     APPLICATION_PAGE = "a", "Save application PDF"
+    RESAVE_APPLICATION_PAGE = "ra", "Re-save last application page PDF"
     APPLICATION_SUBMITTED_ONLY = (
         "as",
         "Save application submitted PDF",
@@ -110,7 +120,12 @@ class Role:
         while page.prepare_application_form():
             time.sleep(0.1)
             self.perform_apply_action(ApplyAction.APPLICATION_PAGE)
-        actions = ApplyAction.all(include_incognito=not incognito)
+        actions = ApplyAction.all(
+            include_incognito=not incognito,
+            include_resave_application=(
+                self.saved_file_counts.get("application", 0) > 0
+            ),
+        )
         try:
             while action := self.prompt_apply_action(actions):
                 if action == ApplyAction.INCOGNITO and not incognito:
@@ -144,6 +159,14 @@ class Role:
     def perform_apply_action(self, action: ApplyAction) -> bool:
         if action == ApplyAction.APPLICATION_PAGE:
             self.get_webdriver().save_pdf(self.new_saved_file("application"))
+        elif action == ApplyAction.RESAVE_APPLICATION_PAGE:
+            try:
+                self.get_webdriver().save_pdf(
+                    self.new_saved_file("application", increment=False)
+                )
+            except InvalidSavedFile as e:
+                print(e)
+                print("")
         elif action == ApplyAction.APPLICATION_SUBMITTED_ONLY:
             self.get_webdriver().save_pdf(
                 self.new_saved_file("application-submitted")
@@ -257,10 +280,17 @@ class Role:
                 print(f"Deleted empty {company_dir}")
             print("")
 
-    def new_saved_file(self, page_type: str, extension: str = "pdf") -> Path:
-        self.saved_file_counts[page_type] += 1
+    def new_saved_file(
+        self, page_type: str, extension: str = "pdf", increment: bool = True
+    ) -> Path:
+        if increment:
+            self.saved_file_counts[page_type] += 1
         new_count = self.saved_file_counts[page_type]
-        if new_count == 2:
+        if new_count == 0:
+            raise InvalidSavedFile(
+                f"There are no existing saved {page_type} files for this role"
+            )
+        if increment and new_count == 2:
             of = f"{page_type}-{self.date_str}.{extension}"
             nf = f"{page_type}-{new_count - 1}-{self.date_str}.{extension}"
             shutil.move(self.role_path / of, self.role_path / nf)
