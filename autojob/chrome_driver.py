@@ -21,6 +21,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 
 from .api import api_client
 from .config import config
+from .utils import prompt_press_enter
 
 CHROME_PROFILE = "Default"
 
@@ -28,6 +29,7 @@ CHROME_PROFILE = "Default"
 @dataclass
 class Webdriver:
     drivers: list[webdriver.Chrome] = field(default_factory=list)
+    default_chrome_first_run: bool = field(init=False, default=True)
 
     @contextmanager
     def __call__(self, incognito: bool = False) -> Iterator[Webdriver]:
@@ -145,6 +147,20 @@ class Webdriver:
 
     @contextmanager
     def _chrome_driver_default_profile(self) -> Iterator[webdriver.Chrome]:
+        if self.default_chrome_first_run:
+            print("")
+            print(
+                Fore.CYAN
+                + Style.BRIGHT
+                + "Action required: "
+                + Style.RESET_ALL
+                + "Close any open Google Chrome windows"
+                + Style.RESET_ALL
+            )
+            print("")
+            prompt_press_enter()
+            self.default_chrome_first_run = False
+
         options = webdriver.ChromeOptions()
         options.add_argument(f"--profile-directory={CHROME_PROFILE}")
         driver = uc.Chrome(
