@@ -111,8 +111,14 @@ class Role:
         return self.webdriver
 
     def apply(self) -> None:
-        page = self.apply_prep()
-        self.apply_form(page)
+        try:
+            page = self.apply_prep()
+            self.apply_form(page)
+        except Exception as e:
+            print(f"Quitting due to an error: {e}")
+            print("")
+            self.apply_cancel()
+            raise
 
     def apply_form(self, page: WebdriverPage, incognito: bool = False) -> None:
         while page.prepare_application_form():
