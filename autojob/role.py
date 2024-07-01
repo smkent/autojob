@@ -193,10 +193,12 @@ class Role:
             print("")
             result = input(
                 Style.BRIGHT
-                + "Enter an action to continue [n]: "
+                + "Enter an action to continue: "
                 + Style.RESET_ALL
             )
             print("")
+            if not result.strip():
+                continue
             try:
                 action = ApplyAction((result.strip() or "n").lower())
                 if action in actions:
