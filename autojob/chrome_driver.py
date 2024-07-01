@@ -228,6 +228,31 @@ class LeverPosting(WebdriverPage):
         return False
 
 
+class AshbyPosting(WebdriverPage):
+    patterns = [r":\/\/jobs\.?ashbyhq\.com\/"]
+
+    def prepare_application_form(self) -> bool:
+        self.webdriver.navigate(self.url.removesuffix("/") + "/application")
+        page_h1 = self.webdriver.el_wait(
+            "//h1[contains(@class, 'ashby-job-posting-heading')]"
+        )
+        self._prefill_fields()
+        page_h1.click()
+        return False
+
+    def _prefill_fields(self) -> None:
+        for el_name, value in [
+            ("_systemfield_name", api_client.me.full_name),
+            ("_systemfield_email", api_client.me.email),
+        ]:
+            if not value:
+                continue
+            with suppress(NoSuchElementException):
+                self.webdriver.el_clickable(
+                    f"//input[@name='{el_name}']"
+                ).send_keys(value)
+
+
 class LinkedInPosting(WebdriverPosting):
     page_type = "posting-linkedin"
     patterns = [r":\/\/(www\.)?linkedin\.com\/"]
