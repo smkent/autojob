@@ -53,8 +53,10 @@ MIN_NUM = 100
 MAX_NUM = 990_000
 
 
-def posting_factory(url: str, company: str | None = None) -> Posting | None:
-    def _posting_class(url: str) -> type[Posting] | None:
+def web_posting_factory(
+    url: str, company: str | None = None
+) -> WebPosting | None:
+    def _posting_class(url: str) -> type[WebPosting] | None:
         if (
             re.search(r"://boards(\.eu)?\.greenhouse\.io", url)
             or "gh_jid=" in url
@@ -80,7 +82,7 @@ def posting_factory(url: str, company: str | None = None) -> Posting | None:
     return None
 
 
-class Posting:
+class WebPosting:
     def __init__(self, url: str, company: str | None = None) -> None:
         self.url = url
         if company:
@@ -169,7 +171,7 @@ class Posting:
         raise NotImplementedError()
 
 
-class GreenhousePosting(Posting):
+class GreenhousePosting(WebPosting):
     @cached_property
     def title(self) -> str:
         for el in self.soup.find_all("h1", {"class": "app-title"}):
@@ -187,7 +189,7 @@ class GreenhousePosting(Posting):
         return []
 
 
-class LeverPosting(Posting):
+class LeverPosting(WebPosting):
     @cached_property
     def title(self) -> str:
         for el in self.soup.find_all("h2"):
