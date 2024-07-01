@@ -148,7 +148,6 @@ class Webdriver:
     @contextmanager
     def _chrome_driver_default_profile(self) -> Iterator[webdriver.Chrome]:
         if self.default_chrome_first_run:
-            print("")
             print(
                 Fore.CYAN
                 + Style.BRIGHT
