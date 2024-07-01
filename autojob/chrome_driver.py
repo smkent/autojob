@@ -6,6 +6,7 @@ import re
 import time
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
+from functools import cached_property
 from pathlib import Path
 from typing import Any, Callable, ClassVar, Iterator, Literal, Sequence
 
@@ -20,6 +21,8 @@ from selenium.webdriver.support.wait import WebDriverWait
 
 from .api import api_client
 from .config import config
+
+CHROME_PROFILE = "Default"
 
 
 @dataclass
@@ -143,10 +146,24 @@ class Webdriver:
     @contextmanager
     def _chrome_driver_default_profile(self) -> Iterator[webdriver.Chrome]:
         options = webdriver.ChromeOptions()
-        options.add_argument("--profile-directory=Default")
-        driver = uc.Chrome(options=options, user_data_dir=" ")
+        options.add_argument(f"--profile-directory={CHROME_PROFILE}")
+        driver = uc.Chrome(
+            options=options, user_data_dir=self._chrome_user_data_dir
+        )
         yield driver
         driver.quit()
+
+    @cached_property
+    def _chrome_user_data_dir(self) -> str:
+        for try_path in [
+            r"%LOCALAPPDATA%\Google\Chrome\User Data",
+            r"~/Library/Application Support/Google/Chrome",
+            r"~/.config/google-chrome",
+        ]:
+            dir_path = os.path.expandvars(os.path.expanduser(try_path))
+            if Path(dir_path).is_dir():
+                return dir_path
+        return " "
 
 
 @dataclass
