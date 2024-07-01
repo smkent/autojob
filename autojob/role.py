@@ -37,12 +37,10 @@ class ApplyAction(StrEnum):
     @staticmethod
     def all(
         include_incognito: bool = False,
-        include_resave_application: bool = False,
     ) -> Sequence[ApplyAction]:
-        actions = [ApplyAction.APPLICATION_PAGE]
-        if include_resave_application:
-            actions.append(ApplyAction.RESAVE_APPLICATION_PAGE)
-        actions += [
+        actions = [
+            ApplyAction.APPLICATION_PAGE,
+            ApplyAction.RESAVE_APPLICATION_PAGE,
             ApplyAction.APPLICATION_SUBMITTED_ONLY,
             ApplyAction.APPLICATION_SUBMITTED,
             ApplyAction.POSTING,
@@ -120,12 +118,7 @@ class Role:
         while page.prepare_application_form():
             time.sleep(0.1)
             self.perform_apply_action(ApplyAction.APPLICATION_PAGE)
-        actions = ApplyAction.all(
-            include_incognito=not incognito,
-            include_resave_application=(
-                self.saved_file_counts.get("application", 0) > 0
-            ),
-        )
+        actions = ApplyAction.all(include_incognito=not incognito)
         try:
             while action := self.prompt_apply_action(actions):
                 if action == ApplyAction.INCOGNITO and not incognito:
