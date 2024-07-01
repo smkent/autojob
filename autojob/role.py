@@ -20,8 +20,6 @@ from .api import Application, Posting, api_client
 from .chrome_driver import Webdriver, WebdriverPage
 from .config import config
 
-chrome_driver = Webdriver()
-
 
 class ApplyAction(StrEnum):
     desc: str
@@ -97,30 +95,34 @@ class Role:
     saved_file_counts: dict[str, int] = field(
         default_factory=lambda: defaultdict(int)
     )
+    webdriver: Webdriver | None = None
+
+    def get_webdriver(self) -> Webdriver:
+        if not self.webdriver:
+            raise Exception("No webdriver provided")
+        return self.webdriver
 
     def apply(self) -> None:
         page = self.apply_prep()
         self.apply_form(page)
 
     def apply_form(self, page: WebdriverPage, incognito: bool = False) -> None:
-        with chrome_driver(incognito=incognito) as webdriver:
-            while page.prepare_application_form():
-                time.sleep(0.1)
-                self.perform_apply_action(
-                    webdriver, ApplyAction.APPLICATION_PAGE
-                )
-            actions = ApplyAction.all(include_incognito=not incognito)
-            try:
-                while action := self.prompt_apply_action(actions):
-                    if action == ApplyAction.INCOGNITO and not incognito:
+        while page.prepare_application_form():
+            time.sleep(0.1)
+            self.perform_apply_action(ApplyAction.APPLICATION_PAGE)
+        actions = ApplyAction.all(include_incognito=not incognito)
+        try:
+            while action := self.prompt_apply_action(actions):
+                if action == ApplyAction.INCOGNITO and not incognito:
+                    with self.get_webdriver()(incognito=True):
                         self.apply_form(page, incognito=True)
-                        return
-                    if not self.perform_apply_action(webdriver, action):
-                        break
-            except KeyboardInterrupt:
-                print("")
-                print("")
-                self.apply_quit()
+                    return
+                if not self.perform_apply_action(action):
+                    break
+        except KeyboardInterrupt:
+            print("")
+            print("")
+            self.apply_quit()
 
     def apply_quit(self) -> None:
         self.apply_cancel()
@@ -139,19 +141,21 @@ class Role:
         )
         print("")
 
-    def perform_apply_action(
-        self, webdriver: Webdriver, action: ApplyAction
-    ) -> bool:
+    def perform_apply_action(self, action: ApplyAction) -> bool:
         if action == ApplyAction.APPLICATION_PAGE:
-            webdriver.save_pdf(self.new_saved_file("application"))
+            self.get_webdriver().save_pdf(self.new_saved_file("application"))
         elif action == ApplyAction.APPLICATION_SUBMITTED_ONLY:
-            webdriver.save_pdf(self.new_saved_file("application-submitted"))
+            self.get_webdriver().save_pdf(
+                self.new_saved_file("application-submitted")
+            )
         elif action == ApplyAction.APPLICATION_SUBMITTED:
-            webdriver.save_pdf(self.new_saved_file("application-submitted"))
+            self.get_webdriver().save_pdf(
+                self.new_saved_file("application-submitted")
+            )
             self.save_application()
             return False
         elif action == ApplyAction.POSTING:
-            webdriver.save_pdf(self.posting_pdf_path)
+            self.get_webdriver().save_pdf(self.posting_pdf_path)
         elif action == ApplyAction.SKIP:
             self.apply_cancel()
             return False
@@ -208,14 +212,13 @@ class Role:
                 shutil.copy(self.resume, role_resume_path)
         if self.save_posting and self.posting.job_board_urls:
             self.save_job_board_postings()
-        with chrome_driver() as webdriver:
-            page = webdriver.navigate(self.posting.url)
-            if self.save_posting and not self.posting_pdf_path.exists():
-                time.sleep(0.5)
-                webdriver.save_pdf(self.posting_pdf_path)
-            if self.posting_pdf_path.is_file():
-                self.check_posting_pdf()
-            return page
+        page = self.get_webdriver().navigate(self.posting.url)
+        if self.save_posting and not self.posting_pdf_path.exists():
+            time.sleep(0.5)
+            self.get_webdriver().save_pdf(self.posting_pdf_path)
+        if self.posting_pdf_path.is_file():
+            self.check_posting_pdf()
+        return page
 
     def apply_close_role(self) -> None:
         note = input("(Optional) Role closed note: ").strip()
@@ -266,14 +269,13 @@ class Role:
         )
 
     def save_job_board_postings(self) -> None:
-        with chrome_driver() as webdriver:
-            for jb_url in self.posting.job_board_urls:
-                page = webdriver.page(jb_url)
-                ev_file = self.new_saved_file(page.page_type)
-                if ev_file.exists():
-                    continue
-                webdriver.navigate(jb_url)
-                webdriver.save_pdf(ev_file)
+        for jb_url in self.posting.job_board_urls:
+            page = self.get_webdriver().page(jb_url)
+            ev_file = self.new_saved_file(page.page_type)
+            if ev_file.exists():
+                continue
+            self.get_webdriver().navigate(jb_url)
+            self.get_webdriver().save_pdf(ev_file)
 
     @cached_property
     def role_files(self) -> list[Path]:

@@ -7,6 +7,7 @@ from pathlib import Path
 from colorama import Fore, Style  # type: ignore
 
 from .api import api_client
+from .chrome_driver import Webdriver
 from .role import Role
 from .utils import prompt_press_enter
 
@@ -17,21 +18,24 @@ class Roles:
     select_companies: set[str] = field(default_factory=set)
     skip_companies: set[str] = field(default_factory=set)
     save_posting: bool = True
+    chrome_driver: Webdriver = field(default_factory=Webdriver)
 
     def __post_init__(self) -> None:
         api_client.load_companies()
 
     def apply(self) -> None:
-        for role, i, total in self.company_role_gen():
-            role.print_info(
-                prefix=(
-                    Style.BRIGHT
-                    + Fore.YELLOW
-                    + f"[{i}/{total}]"
-                    + Style.RESET_ALL
+        with self.chrome_driver(incognito=False) as webdriver:
+            for role, i, total in self.company_role_gen():
+                role.webdriver = webdriver
+                role.print_info(
+                    prefix=(
+                        Style.BRIGHT
+                        + Fore.YELLOW
+                        + f"[{i}/{total}]"
+                        + Style.RESET_ALL
+                    )
                 )
-            )
-            role.apply()
+                role.apply()
 
     def company_role_gen(self) -> Iterator[tuple[Role, int, int]]:
         prev_company = None
