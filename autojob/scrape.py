@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 from flatten_json import flatten as flatten_json  # type: ignore
 
 from .api import Company, api_client
-from .posting import Posting, posting_factory
+from .web_posting import WebPosting, web_posting_factory
 
 
 @dataclass
@@ -110,7 +110,7 @@ class Scrape:
                 if self.args.csv:
                     print(posting.csv_row, file=csv)
 
-    def postings(self) -> Iterator[Posting]:
+    def postings(self) -> Iterator[WebPosting]:
         for company, company_urls in self.generate_companies():
             print(
                 f"Examining postings for {company}"
@@ -122,7 +122,7 @@ class Scrape:
                         continue
                     if self.args.verbose:
                         print("Consider URL", url)
-                    posting = posting_factory(url, company=company)
+                    posting = web_posting_factory(url, company=company)
                     if not posting:
                         continue
                     if self.args.verbose:
