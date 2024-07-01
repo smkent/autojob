@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from contextlib import ExitStack
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -24,8 +25,13 @@ class Roles:
         api_client.load_companies()
 
     def apply(self) -> None:
-        with self.chrome_driver(incognito=False) as webdriver:
+        webdriver = None
+        with ExitStack() as es:
             for role, i, total in self.company_role_gen():
+                if not webdriver:
+                    webdriver = es.enter_context(
+                        self.chrome_driver(incognito=False)
+                    )
                 role.webdriver = webdriver
                 role.print_info(
                     prefix=(
