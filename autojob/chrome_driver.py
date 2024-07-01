@@ -26,12 +26,14 @@ from .config import config
 from .utils import prompt_press_enter
 
 CHROME_PROFILE = "Default"
+TEXTAREA_DEFAULT = "This is a great topic for an interview"
 
 
 @dataclass
 class Webdriver:
     drivers: list[webdriver.Chrome] = field(default_factory=list)
     default_chrome_first_run: bool = field(init=False, default=True)
+    implicit_wait_time: int = field(init=False, default=3)
 
     @contextmanager
     def __call__(self, incognito: bool = False) -> Iterator[Webdriver]:
@@ -50,6 +52,12 @@ class Webdriver:
             yield self
             self.drivers.pop(0)
 
+    @contextmanager
+    def implicit_wait(self, length: int) -> Iterator[None]:
+        self.driver.implicitly_wait(length)
+        yield
+        self.driver.implicitly_wait(self.implicit_wait_time)
+
     @property
     def driver(self) -> webdriver.Chrome:
         if not self.drivers:
@@ -61,7 +69,7 @@ class Webdriver:
 
     def navigate(self, url: str) -> WebdriverPage:
         self.driver.switch_to.window(self.driver.current_window_handle)
-        self.driver.implicitly_wait(3)
+        self.driver.implicitly_wait(0)  # self.implicit_wait_time)
         self.driver.get(url)
         time.sleep(0.25)
         page = self.page(url)
@@ -94,9 +102,11 @@ class Webdriver:
         return el
 
     def el_clickable(
-        self, locator: WebElement | str, by: str = By.XPATH
+        self, locator: WebElement | str, by: str = By.XPATH, timeout: float = 3
     ) -> WebElement:
-        el = self.el_wait(locator, by, condition=ec.element_to_be_clickable)
+        el = self.el_wait(
+            locator, by, condition=ec.element_to_be_clickable, timeout=timeout
+        )
         self.scroll(el, block="center")
         return el
 
@@ -203,6 +213,15 @@ class WebdriverPage:
         pass
 
     def prepare_application_form(self) -> bool:
+        with self.webdriver.implicit_wait(0), suppress(TimeoutException):
+            for textarea in self.webdriver.el_all("//textarea"):
+                with suppress(TimeoutException):
+                    self.webdriver.el_clickable(textarea, timeout=0.1)
+                    self.webdriver.scroll(textarea)
+                    if not textarea.is_displayed():
+                        continue
+                    textarea.send_keys(TEXTAREA_DEFAULT)
+                    time.sleep(0.1)
         return False
 
     def page_file_name(self, count: int = 0) -> str:
@@ -232,7 +251,7 @@ class LeverPosting(WebdriverPage):
 
     def prepare_application_form(self) -> bool:
         self.webdriver.navigate(self.url.removesuffix("/") + "/apply")
-        return False
+        return super().prepare_application_form()
 
 
 class AshbyPosting(WebdriverPage):
@@ -240,6 +259,8 @@ class AshbyPosting(WebdriverPage):
 
     def prepare_application_form(self) -> bool:
         self.webdriver.navigate(self.url.removesuffix("/") + "/application")
+        if stop := super().prepare_application_form():
+            return stop
         with suppress(TimeoutException):
             page_h1 = self.webdriver.el_wait(
                 "//h1[contains(@class, 'ashby-job-posting-heading')]"
@@ -280,7 +301,7 @@ class LinkedInPosting(WebdriverPosting):
                     (By.XPATH, "//main//button[contains(., 'Easy Apply')]")
                 )
             ).click()
-        return False
+        return super().prepare_application_form()
 
 
 class GreenhousePosting(WebdriverPage):
@@ -322,7 +343,7 @@ class GreenhousePosting(WebdriverPage):
             self._prefill_fields()
             self.webdriver.scroll(form)
             form.click()
-        return False
+        return super().prepare_application_form()
 
 
 class ShopifyPosting(WebdriverPosting):
@@ -340,7 +361,7 @@ class ShopifyPosting(WebdriverPosting):
         self._prefill_fields()
         self.webdriver.scroll(application_h2)
         application_h2.click()
-        return False
+        return super().prepare_application_form()
 
     def _prepare_screening_questions(self) -> None:
         button = self.webdriver.el_clickable(
