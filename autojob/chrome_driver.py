@@ -271,16 +271,42 @@ class AshbyPosting(WebdriverPage):
         return False
 
     def _prefill_fields(self) -> None:
-        for el_name, value in [
-            ("_systemfield_name", api_client.me.full_name),
-            ("_systemfield_email", api_client.me.email),
-        ]:
-            if not value:
-                continue
-            with suppress(NoSuchElementException):
-                self.webdriver.el_clickable(
-                    f"//input[@name='{el_name}']"
-                ).send_keys(value)
+        input_base = "input[@required]"
+        input_text = f"{input_base}[@type='text']"
+        with self.webdriver.implicit_wait(0):
+            for xpath, value in [
+                (
+                    f"//{input_text}[@name='_systemfield_name']",
+                    api_client.me.full_name,
+                ),
+                (
+                    f"//{input_base}"
+                    "[@type='email'][@name='_systemfield_email']",
+                    api_client.me.email,
+                ),
+                (f"//{input_base}[@type='tel']", api_client.me.phone),
+                (
+                    "//label[contains(., 'LinkedIn')]"
+                    f"/following-sibling::"
+                    f"{input_text}",
+                    api_client.me.linkedin,
+                ),
+                (
+                    "//label[contains(., 'egal name')]"
+                    f"/following-sibling"
+                    "::"
+                    f"{input_text}",
+                    api_client.me.full_name,
+                ),
+            ]:
+                if not value:
+                    continue
+                with suppress(NoSuchElementException, TimeoutException):
+                    el = self.webdriver.el_clickable(xpath, timeout=0.1)
+                    if el.get_attribute("value"):
+                        print(f"Skip existing value for {xpath}")
+                        continue
+                    el.send_keys(value)
 
 
 class LinkedInPosting(WebdriverPosting):
