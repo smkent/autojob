@@ -290,14 +290,11 @@ class Role:
                 f"There are no existing saved {page_type} files for this role"
             )
         if increment and new_count == 2:
-            of = f"{page_type}-{self.date_str}.{extension}"
-            nf = f"{page_type}-{new_count - 1}-{self.date_str}.{extension}"
+            of = f"{page_type}.{extension}"
+            nf = f"{page_type}-{new_count - 1}.{extension}"
             shutil.move(self.role_path / of, self.role_path / nf)
         fn_count = f"-{new_count}" if new_count > 1 else ""
-        return (
-            self.role_path
-            / f"{page_type}{fn_count}-{self.date_str}.{extension}"
-        )
+        return self.role_path / f"{page_type}{fn_count}.{extension}"
 
     def save_job_board_postings(self) -> None:
         for jb_url in self.posting.job_board_urls:
@@ -424,7 +421,7 @@ class Role:
 
     @cached_property
     def posting_pdf_path(self) -> Path:
-        return self.role_path / f"posting-{self.date_str}.pdf"
+        return self.role_path / "posting.pdf"
 
     @cached_property
     def company_slug(self) -> str:
@@ -432,15 +429,11 @@ class Role:
 
     @cached_property
     def title_slug(self) -> str:
-        return slugify(self.posting.title)
-
-    @cached_property
-    def date_str(self) -> str:
-        return datetime.now().strftime("%Y%m%d")
+        return slugify(self.posting.title)[:20].rstrip("-")
 
     @cached_property
     def role_dir_name(self) -> str:
-        return f"{self.posting.pk}-{self.date_str}-{self.title_slug}"
+        return f"{self.posting.pk}-{self.title_slug}"
 
     @cached_property
     def role_path(self) -> Path:
