@@ -1,0 +1,2 @@
+class NextCompany(Exception):
+    pass

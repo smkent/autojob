@@ -7,8 +7,9 @@ from pathlib import Path
 
 from colorama import Fore, Style  # type: ignore
 
-from .api import api_client
+from .api import Company, api_client
 from .chrome_driver import Webdriver
+from .exceptions import NextCompany
 from .role import Role
 from .utils import prompt_press_enter
 
@@ -27,21 +28,27 @@ class Roles:
     def apply(self) -> None:
         webdriver = None
         with ExitStack() as es:
+            skipping_company: Company | None = None
             for role, i, total in self.company_role_gen():
-                if not webdriver:
-                    webdriver = es.enter_context(
-                        self.chrome_driver(incognito=False)
+                try:
+                    if skipping_company == role.posting.company:
+                        continue
+                    if not webdriver:
+                        webdriver = es.enter_context(
+                            self.chrome_driver(incognito=False)
+                        )
+                    role.webdriver = webdriver
+                    role.print_info(
+                        prefix=(
+                            Style.BRIGHT
+                            + Fore.YELLOW
+                            + f"[{i}/{total}]"
+                            + Style.RESET_ALL
+                        )
                     )
-                role.webdriver = webdriver
-                role.print_info(
-                    prefix=(
-                        Style.BRIGHT
-                        + Fore.YELLOW
-                        + f"[{i}/{total}]"
-                        + Style.RESET_ALL
-                    )
-                )
-                role.apply()
+                    role.apply()
+                except NextCompany:
+                    skipping_company = role.posting.company
 
     def company_role_gen(self) -> Iterator[tuple[Role, int, int]]:
         prev_company = None
