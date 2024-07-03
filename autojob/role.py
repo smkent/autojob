@@ -19,6 +19,7 @@ from slugify import slugify
 from .api import Application, Posting, api_client
 from .chrome_driver import Webdriver, WebdriverPage
 from .config import config
+from .exceptions import NextCompany
 
 
 class InvalidSavedFile(ValueError):
@@ -51,6 +52,7 @@ class ApplyAction(StrEnum):
             ApplyAction.FINISH_ROLE,
             ApplyAction.CLOSE_ROLE,
             ApplyAction.SKIP,
+            ApplyAction.NEXT_COMPANY,
             ApplyAction.QUIT,
         ]
         return actions
@@ -73,6 +75,7 @@ class ApplyAction(StrEnum):
         "Mark this role as closed for everyone and remove its files",
     )
     SKIP = "skip", "Skip role and remove its files"
+    NEXT_COMPANY = "cc", "Skip to next company"
     QUIT = "q", "Quit"
 
 
@@ -114,6 +117,8 @@ class Role:
         try:
             page = self.apply_prep()
             self.apply_form(page)
+        except NextCompany:
+            raise
         except Exception as e:
             print(f"Quitting due to an error: {e}")
             print("")
@@ -187,6 +192,10 @@ class Role:
             return False
         elif action == ApplyAction.FINISH_ROLE:
             self.save_application()
+            return False
+        elif action == ApplyAction.NEXT_COMPANY:
+            self.apply_cancel()
+            raise NextCompany()
             return False
         elif action == ApplyAction.QUIT:
             self.apply_quit()
