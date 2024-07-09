@@ -7,7 +7,7 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass, field, fields
 from datetime import datetime
-from enum import StrEnum
+from enum import Enum
 from functools import cached_property
 from pathlib import Path
 from typing import Sequence
@@ -26,7 +26,7 @@ class InvalidSavedFile(ValueError):
     pass
 
 
-class ApplyAction(StrEnum):
+class ApplyAction(str, Enum):
     desc: str
 
     def __new__(cls, value: str, desc: str = "") -> ApplyAction:
@@ -217,7 +217,7 @@ class Role:
                 print(
                     "    "
                     + Style.BRIGHT
-                    + f"{aa: <{indent}} "
+                    + f"{aa.value: <{indent}} "
                     + Style.RESET_ALL
                     + aa.desc
                 )
