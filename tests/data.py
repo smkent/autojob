@@ -32,5 +32,6 @@ def make_queue_response() -> list[dict[str, Any]]:
             "url": "https://careers.example.com/jobs/1",
             "title": "Principal Senior Staff Executive Delivery Boy",
             "location": "Remote",
+            "in_wa": False,
         }
     ]

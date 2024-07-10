@@ -71,6 +71,7 @@ class Posting(Model):
     company: Company
     url: str
     title: str
+    in_wa: bool
     location: str
     wa_jurisdiction: str = ""
     notes: str = ""
