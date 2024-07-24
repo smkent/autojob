@@ -9,7 +9,7 @@ from pathlib import Path
 from colorama import Fore, Style  # type: ignore
 from dateutil.parser import parse as parse_date
 
-from .api import api_client
+from .api import CompanyPriority, api_client
 from .config import ConfigSetup, config
 from .roles import Roles
 
@@ -101,6 +101,22 @@ class AutoJobApp:
                 " (default: no companies skipped)"
             ),
         )
+        ap.add_argument(
+            "-p",
+            "--priority",
+            dest="company_priority",
+            choices=["high", "normal", "low"],
+            metavar="level",
+            help="Filter by company priority (choices: high, normal, low)",
+        )
+        ap.add_argument(
+            "-w",
+            "--in-wa",
+            "--wa",
+            dest="in_wa",
+            action="store_true",
+            help="Filter for roles in WA",
+        )
         return ap.parse_known_args()
 
     @cached_property
@@ -117,6 +133,12 @@ class AutoJobApp:
             return
         self.print_config()
         if self.args.action == "apply":
+            if self.args.company_priority is not None:
+                api_client.company_priority = CompanyPriority[
+                    self.args.company_priority.upper()
+                ]
+            if self.args.in_wa:
+                api_client.in_wa = True
             self.roles.apply()
         elif self.args.action == "check":
             self.check()
