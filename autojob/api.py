@@ -4,6 +4,7 @@ import json
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from functools import cached_property
 from typing import Any
 from urllib.parse import quote
@@ -16,6 +17,20 @@ from .config import config
 
 dataclasses_json.cfg.global_config.encoders[datetime] = datetime.isoformat
 dataclasses_json.cfg.global_config.decoders[datetime] = datetime.fromisoformat
+
+
+class CompanyPriority(int, Enum):
+    desc: str
+
+    def __new__(cls, value: int, desc: str) -> CompanyPriority:
+        member = int.__new__(cls, value)
+        member._value_ = value
+        member.desc = desc
+        return member
+
+    HIGH = 1000, "High"
+    NORMAL = 500, "Normal"
+    LOW = 100, "Low"
 
 
 def model_exclude(value: Any) -> bool:
@@ -107,6 +122,9 @@ class API:
     postings_by_url: dict[str, Posting] = field(default_factory=dict)
     applications_by_url: dict[str, Application] = field(default_factory=dict)
 
+    company_priority: CompanyPriority | None = None
+    in_wa: bool | None = None
+
     api_limit: int = field(init=False, default=1000)
 
     def request_raw(
@@ -135,7 +153,7 @@ class API:
         **kwargs: Any,
     ) -> Iterator[Any]:
         while endpoint:
-            response = self.request_raw(endpoint)
+            response = self.request_raw(endpoint, *args, **kwargs)
             if next_url := response.links.get("next", {}).get("url"):
                 endpoint = next_url
             else:
@@ -166,7 +184,12 @@ class API:
             self.cache_application(Application.from_dict(data))
 
     def postings_queue(self) -> Iterator[Posting]:
-        for data in self.request_all(f"queue?limit={self.api_limit}"):
+        params = {"limit": str(self.api_limit)}
+        if self.company_priority is not None:
+            params["priority"] = self.company_priority.value
+        if self.in_wa is not None:
+            params["in_wa"] = str(self.in_wa).lower()
+        for data in self.request_all("queue", params=params):
             data["company"] = self.get_company_by_link(data["company"])
             yield Posting.from_dict(data)
 
