@@ -9,7 +9,8 @@ from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from functools import cached_property, partial
 from pathlib import Path
-from typing import Any, Callable, ClassVar, Iterator, Literal, Sequence
+from typing import Any, Callable, ClassVar, Literal
+from collections.abc import Iterator, Sequence
 from unittest import mock
 
 import selenium.webdriver.support.expected_conditions as ec

@@ -1,13 +1,12 @@
 [build-system]
-requires = ["poetry-core>=1.2.0", "poetry-dynamic-versioning"]
-build-backend = "poetry_dynamic_versioning.backend"
+requires = ["poetry-core>=2.0.0,<3.0.0", "poetry-dynamic-versioning"]
+build-backend = "poetry.core.masonry.api"
 
-[tool.poetry]
+[project]
 name = "autojob"
-version = "0.0.0"
 description = "Job application tools"
 license = "GPL-3.0-or-later"
-authors = ["Stephen Kent <smkent@smkent.net>"]
+authors = [ { name = "Stephen Kent", email = "smkent@smkent.net" } ]
 readme = "README.md"
 repository = "https://github.com/smkent/autojob"
 classifiers = [
@@ -16,27 +15,39 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
+requires-python = ">=3.10,<4.0"
+dynamic = [ "version" ]
+dependencies = [
+    "beautifulsoup4 (>=4.12.3)",
+    "colorama (>=0.4.6)",
+    "dataclasses-json (>=0.6.7)",
+    "flatten-json (>=0.1.14)",
+    "lxml (>=5.2.2)",
+    "pypdf (>=4.1.0)",
+    "python-dateutil (>=2.9.0.post0)",
+    "pyyaml (>=6.0.1)",
+    "responses (>=0.25.3)",
+    "selenium (>=4.10)",
+    "setuptools (>=70.0.0)",
+    "types-beautifulsoup4 (>=4.12.0.20240511)",
+    "types-pyyaml (>=6.0.12.20240311)",
+    "types-requests (>=2.32.0.20240602)",
+    "undetected-chromedriver (>=3.5.5)",
+    "webdriver-manager (>=3.8.6)",
+]
 
-[tool.poetry.dependencies]
-python = "^3.10"
-pypdf = "^4.1.0"
-colorama = "^0.4.6"
-python-dateutil = "^2.9.0.post0"
-pyyaml = "^6.0.1"
-types-pyyaml = "^6.0.12.20240311"
-beautifulsoup4 = "^4.12.3"
-types-requests = "^2.32.0.20240602"
-types-beautifulsoup4 = "^4.12.0.20240511"
-lxml = "^5.2.2"
-flatten-json = "^0.1.14"
-selenium = "^4.10"
-webdriver-manager = "^3.8.6"
-setuptools = "^70.0.0"
-dataclasses-json = "^0.6.7"
-responses = "^0.25.3"
-undetected-chromedriver = "^3.5.5"
+[project.scripts]
+autojob = "autojob.main:AutoJobApp()"
+scrapejob = "autojob.scrape:Scrape()"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry]
+requires-poetry = ">=2.0"
+version = "0.0.0"
+
+[tool.poetry.requires-plugins]
+poetry-dynamic-versioning = { version = ">=1.0.0,<2.0.0", extras = ["plugin"] }
+
+[tool.poetry.group.dev.dependencies]
 bandit = {extras = ["toml"], version = "*"}
 black = "*"
 cruft = "*"
@@ -53,10 +64,6 @@ pytest = "*"
 pytest-cov = "*"
 pytest-github-actions-annotate-failures = "*"
 pytest-sugar = "*"
-
-[tool.poetry.scripts]
-autojob = "autojob.main:AutoJobApp()"
-scrapejob = "autojob.scrape:Scrape()"
 
 [tool.poetry-dynamic-versioning]
 enable = true
