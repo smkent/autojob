@@ -4,7 +4,8 @@ from contextlib import suppress
 from functools import cached_property
 from pathlib import Path
 from textwrap import indent
-from typing import Any, Sequence
+from typing import Any
+from collections.abc import Sequence
 
 import yaml
 from colorama import Style  # type: ignore

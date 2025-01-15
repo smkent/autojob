@@ -10,7 +10,7 @@ from datetime import datetime
 from enum import Enum
 from functools import cached_property
 from pathlib import Path
-from typing import Sequence
+from collections.abc import Sequence
 
 from colorama import Fore, Style  # type: ignore
 from pypdf import PdfReader

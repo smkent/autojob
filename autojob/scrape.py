@@ -3,7 +3,7 @@ from argparse import ArgumentParser, Namespace
 from contextlib import ExitStack
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Iterator, Sequence
+from collections.abc import Iterator, Sequence
 from urllib.parse import urljoin
 
 import requests

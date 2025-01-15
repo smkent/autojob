@@ -1,7 +1,7 @@
 import json
 import os
 from tempfile import NamedTemporaryFile
-from typing import Iterable, Iterator
+from collections.abc import Iterable, Iterator
 from unittest import mock
 
 import pytest
@@ -64,8 +64,9 @@ def api_queue(
 
 @pytest.fixture(autouse=True)
 def conf(http_responses: responses.RequestsMock) -> Iterator[Config]:
-    with NamedTemporaryFile(suffix=".conf.yaml") as tf, mock.patch.dict(
-        os.environ, {"CONF": tf.name}
+    with (
+        NamedTemporaryFile(suffix=".conf.yaml") as tf,
+        mock.patch.dict(os.environ, {"CONF": tf.name}),
     ):
         with open(tf.name, "w") as f:
             f.write(yaml.dump(TEST_CONF))
