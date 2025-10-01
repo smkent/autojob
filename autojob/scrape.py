@@ -1,9 +1,9 @@
 import time
 from argparse import ArgumentParser, Namespace
+from collections.abc import Iterator, Sequence
 from contextlib import ExitStack
 from dataclasses import dataclass
 from functools import cached_property
-from collections.abc import Iterator, Sequence
 from urllib.parse import urljoin
 
 import requests
@@ -163,3 +163,7 @@ class Scrape:
         except (requests.exceptions.HTTPError, Exception) as e:
             print(f"Unable to retrieve {url}, skipping ({e})")
         return urls
+
+
+def main() -> None:
+    Scrape()()
