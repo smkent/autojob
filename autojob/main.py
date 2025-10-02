@@ -198,3 +198,7 @@ class AutoJobApp:
     @cached_property
     def date_str(self) -> str:
         return datetime.now().strftime("%Y%m%d")
+
+
+def main() -> None:
+    AutoJobApp()()

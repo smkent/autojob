@@ -37,8 +37,8 @@ dependencies = [
 ]
 
 [project.scripts]
-autojob = "autojob.main:AutoJobApp()"
-scrapejob = "autojob.scrape:Scrape()"
+autojob = "autojob.main:main"
+scrapejob = "autojob.scrape:Scrape"
 
 [tool.poetry]
 requires-poetry = ">=2.0"
