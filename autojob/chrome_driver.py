@@ -5,12 +5,12 @@ import json
 import os
 import re
 import time
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from functools import cached_property, partial
 from pathlib import Path
 from typing import Any, Callable, ClassVar, Literal
-from collections.abc import Iterator, Sequence
 from unittest import mock
 
 import selenium.webdriver.support.expected_conditions as ec
@@ -23,10 +23,10 @@ from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.wait import WebDriverWait
 
 from .api import api_client
-from .config import config
+from .config import CONFIG_DIR, config
 from .utils import prompt_press_enter
 
-CHROME_PROFILE = "Default"
+USER_DATA_DIR = CONFIG_DIR / "chrome-profile"
 TEXTAREA_DEFAULT = "This is a great topic for an interview"
 
 
@@ -173,14 +173,11 @@ class Webdriver:
             prompt_press_enter()
             self.default_chrome_first_run = False
 
-        options = uc.ChromeOptions()
-        options.add_argument(f"--profile-directory={CHROME_PROFILE}")
         with mock.patch.object(
             json, "dump", wraps=partial(json.dump, ensure_ascii=False)
         ):
             driver = uc.Chrome(
-                options=options,
-                user_data_dir=self._chrome_user_data_dir,
+                user_data_dir=USER_DATA_DIR,  # self._chrome_user_data_dir,
                 use_subprocess=True,
             )
             yield driver

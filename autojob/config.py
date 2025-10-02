@@ -1,17 +1,19 @@
 import os
 import sys
+from collections.abc import Sequence
 from contextlib import suppress
 from functools import cached_property
 from pathlib import Path
 from textwrap import indent
 from typing import Any
-from collections.abc import Sequence
 
 import yaml
 from colorama import Style  # type: ignore
 
 HOME = Path.home()
-CONF_FILE = HOME / ".autojob.yaml"
+OLD_CONFIG_FILE = HOME / ".autojob.yaml"
+CONFIG_DIR = HOME / ".autojob"
+CONFIG_FILE = CONFIG_DIR / "config.yaml"
 COMPENSATION_WORDS = ("$", "USD", "salary", "compensation")
 
 
@@ -28,7 +30,14 @@ class Config:
     def conf_file(self) -> Path:
         if fn := os.environ.get("CONF"):
             return Path(fn)
-        return CONF_FILE
+        if not CONFIG_FILE.is_file() and OLD_CONFIG_FILE.is_file():
+            print(
+                "Migrating config file from"
+                f" {OLD_CONFIG_FILE} to {CONFIG_FILE}"
+            )
+            CONFIG_DIR.mkdir(exist_ok=True)
+            OLD_CONFIG_FILE.rename(CONFIG_FILE)
+        return CONFIG_FILE
 
     @cached_property
     def raw(self) -> dict[str, Any]:
